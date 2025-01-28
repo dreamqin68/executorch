@@ -135,7 +135,7 @@ void make_kernel_key_string(Span<const TensorMeta> key, char* buf) {
     // If no tensor is present in an op, kernel key does not apply
     return;
   }
-  strncpy(buf, "v1/", 3);
+  strcpy(buf, "v1/");
   buf += 3;
   for (size_t i = 0; i < key.size(); i++) {
     auto& meta = key[i];
