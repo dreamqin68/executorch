@@ -25,6 +25,9 @@ class SMTExpr:
     def __mul__(self, other: "SMTExpr") -> "SMTExpr":
         return SMTExpr(self.expr * other.expr)
 
+    def __truediv__(self, other: "SMTExpr") -> "SMTExpr":
+        return SMTExpr(self.expr / other.expr)
+
     def __eq__(self, other: "SMTExpr") -> "SMTExpr":
         # Returns an SMT expression representing equality.
         return SMTExpr(self.expr == other.expr)
@@ -157,6 +160,70 @@ class SMTExpr:
         # We'll just do a minimal placeholder:
         slice_fn = z3.Function("slice_placeholder", z3.IntSort(), z3.RealSort())
         return SMTExpr(slice_fn)
+
+    @staticmethod
+    def sdpa(
+        q_expr: "SMTExpr",
+        k_expr: "SMTExpr",
+        v_expr: "SMTExpr",
+        mask_expr: "SMTExpr",
+        scale_expr: "SMTExpr",
+    ) -> "SMTExpr":
+        """
+        Placeholder for scaled dot-product attention:
+        result = softmax((q x k^T)*scale + mask) x v
+        A real system might create a function or lambda that does a matrix multiply and
+        a softmax. Here we do a minimal uninterpreted function returning an array.
+        """
+        sdpa_fn = z3.Function("sdpa_placeholder", z3.IntSort(), z3.RealSort())
+        return SMTExpr(sdpa_fn)
+
+    @staticmethod
+    def select_dim(
+        input_expr: "SMTExpr", shape: list[int], dim: int, index: int
+    ) -> "SMTExpr":
+        """
+        Symbolically select along dimension `dim` at a single `index`.
+        For demonstration, we create an uninterpreted function that stands for
+        'input_expr sliced at dim=dim, index=index'.
+        A real system might define a reindexing lambda.
+
+        shape is the original shape of input_expr.
+        We note that dimension `dim` is removed from the shape by 1.
+        """
+
+        select_fn = z3.Function("select_dim_placeholder", z3.IntSort(), z3.RealSort())
+        return SMTExpr(select_fn)
+
+    @staticmethod
+    def concat(inputs: List["SMTExpr"], axis: int) -> "SMTExpr":
+        """
+        Placeholder for a 'concatenate' op across 'axis'.
+        For a real system, you'd define a new array expression that, for each index i,
+        decides which input array it comes from based on i's offset in dimension axis.
+        We do a minimal placeholder approach returning an uninterpreted function:
+        concat_placeholder_axis_{axis}: Int -> Real
+        If you want to handle multi-dimensional indexing precisely, you'd do a lambda
+        that re-maps indices for each input in the specified 'axis' dimension.
+        """
+
+        # We'll just name a function based on how many inputs and the axis
+        fun_name = f"concat_placeholder_axis_{axis}_inputs_{len(inputs)}"
+        cat_fn = z3.Function(fun_name, z3.IntSort(), z3.RealSort())
+        return SMTExpr(cat_fn)
+
+    @staticmethod
+    def matmul(a_expr: "SMTExpr", b_expr: "SMTExpr") -> "SMTExpr":
+        """
+        Placeholder for matrix multiply of two 2D (or higher) arrays.
+        In a real system, you'd define constraints or a lambda for each
+        output element = sum(a_expr[i,k] * b_expr[k,j]).
+        For demonstration, we do an uninterpreted function from Int -> Real.
+        """
+
+        # We'll just create an uninterpreted function – a placeholder approach.
+        matmul_fn = z3.Function("matmul_placeholder", z3.IntSort(), z3.RealSort())
+        return SMTExpr(matmul_fn)
 
     @property
     def z3_expr(self) -> z3.ExprRef:
