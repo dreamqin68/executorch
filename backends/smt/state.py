@@ -1,30 +1,35 @@
 import z3
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 import collections
 
+
 class SMTExpr:
-    """A wrapper for a Z3 expression."""
-    def __init__(self, expr):
-        # expr is a z3.ExprRef
+    """A wrapper for a Z3 expression, often representing a tensor as an array."""
+
+    def __init__(self, expr: z3.ExprRef):
+        # expr is a z3.ExprRef, either a Bool, Int, Real, or Array, etc.
         self.expr = expr
 
-    def __and__(self, other):
+    def __and__(self, other: "SMTExpr") -> "SMTExpr":
         return SMTExpr(z3.And(self.expr, other.expr))
 
-    def __rand__(self, other):
+    def __rand__(self, other: "SMTExpr") -> "SMTExpr":
         return self.__and__(other)
 
-    def __add__(self, other):
+    def __add__(self, other: "SMTExpr") -> "SMTExpr":
         return SMTExpr(self.expr + other.expr)
 
-    def __mul__(self, other):
+    def __sub__(self, other: "SMTExpr") -> "SMTExpr":
+        return SMTExpr(self.expr - other.expr)
+
+    def __mul__(self, other: "SMTExpr") -> "SMTExpr":
         return SMTExpr(self.expr * other.expr)
 
-    def __eq__(self, other):
+    def __eq__(self, other: "SMTExpr") -> "SMTExpr":
         # Returns an SMT expression representing equality.
         return SMTExpr(self.expr == other.expr)
 
-    def __ne__(self, other):
+    def __ne__(self, other: "SMTExpr") -> "SMTExpr":
         # Returns an SMT expression representing inequality.
         return SMTExpr(self.expr != other.expr)
 
@@ -32,24 +37,137 @@ class SMTExpr:
         return f"SMTExpr({self.expr})"
 
     @staticmethod
-    def mkBool(val: bool):
+    def mkBool(val: bool) -> "SMTExpr":
+        """Wraps a python bool in a z3.BoolVal."""
         return SMTExpr(z3.BoolVal(val))
 
     @staticmethod
-    def var(name: str, bitwidth: int = 32):
-        # For simplicity, we create a BitVec variable.
+    def var(name: str, bitwidth: int = 32) -> "SMTExpr":
+        """
+        Creates a fresh variable of BitVec sort (for demonstration).
+        In a real system, you might prefer Real or a more specialized sort.
+        """
         return SMTExpr(z3.BitVec(name, bitwidth))
 
+    @staticmethod
+    def mkConst(val: Any) -> "SMTExpr":
+        """
+        Create a Z3 constant from a Python value.
+          - int -> IntVal
+          - float -> RealVal
+          - otherwise assume val is already a z3.ExprRef or we treat it as is.
+        """
+        if isinstance(val, int):
+            return SMTExpr(z3.IntVal(val))
+        elif isinstance(val, float):
+            return SMTExpr(z3.RealVal(val))
+        else:
+            # For other types (like array expressions), assume it's already z3.
+            return SMTExpr(val)
+
+    @staticmethod
+    def gather(weight_expr: "SMTExpr", indices_expr: "SMTExpr") -> "SMTExpr":
+        """
+        Implements a simple gather operation.
+        For demonstration, we assume weight_expr is an Array, and indices_expr is a scalar
+        that references the index. We model gather as z3.Select(weight_expr, indices_expr).
+
+        For a real system that handles vectorized indices, you'd expand this to a loop or
+        a lambda expression mapping each index in indices_expr to a Select call.
+        """
+        return SMTExpr(z3.Select(weight_expr.expr, indices_expr.expr))
+
+    @staticmethod
+    def transpose(self, shape: List[int], perm: List[int]) -> "SMTExpr":
+        """
+        Symbolically transpose (or permute dimensions of) this array expression.
+        In a real system, you'd:
+          1) represent 'self.expr' as an array from int -> real,
+          2) break the index i into multi-dimensional indices,
+          3) reorder them according to 'perm',
+          4) flatten them back to a 1D index,
+          5) build a lambda expression mapping i -> Select(old_expr, new_index).
+
+        For demonstration, we define a placeholder approach that uses an
+        uninterpreted function representing the transposed array.
+        """
+        # For a real approach, you'd define a new array e.g.:
+        #   i = z3.Int("i_tr")
+        #   lam = z3.Lambda( i, z3.Select(self.expr, reorderIndex(i, shape, perm)) )
+        # then return SMTExpr(lam)
+        # Here we do a minimal placeholder:
+
+        # Create an uninterpreted function name that references this expression.
+        name_hint = "trans_of_"
+        # If self.expr is a function or array, we might have a name:
+        if self.expr.decl().kind() == z3.Z3_OP_UNINTERPRETED:
+            base_name = self.expr.decl().name()
+            fun_name = f"{name_hint}{base_name}"
+        else:
+            fun_name = f"{name_hint}arr"
+
+        # Create an uninterpreted function from Int -> Real,
+        # modeling the transposed array as a new function.
+        # A real system would do a lambda re-mapping.
+        trans_fn = z3.Function(fun_name, z3.IntSort(), z3.RealSort())
+        return SMTExpr(trans_fn)
+
+    @staticmethod
+    def global_avg_pool_2d(input_expr: "SMTExpr", shape_4d: tuple) -> "SMTExpr":
+        """
+        Placeholder for a 'global average pooling over last two dims' of a 4D tensor.
+        shape_4d is expected to be (N, C, H, W).
+
+        In a real system, you'd define a new lambda expression or
+        an uninterpreted function that asserts for each (n, c)
+        the result = sum_{h,w} input_expr[n,c,h,w] / (H*W).
+        For demonstration, we produce an uninterpreted function 'gap' of type
+        (Int, Int) -> Real
+        that stands in for that result for each (n,c).
+        """
+        # This is a minimal placeholder approach.
+        # We'll create a new Z3 function with name 'gap_placeholder'
+        # from Int->Real, ignoring that we actually have 2 dims for (n,c).
+        gap_fn = z3.Function("gap_placeholder", z3.IntSort(), z3.RealSort())
+        return SMTExpr(gap_fn)
+
+    @staticmethod
+    def slice(
+        input_expr: "SMTExpr",
+        shape: list[int],
+        dim: int,
+        start: int,
+        size: int,
+        stride: int = 1,
+    ) -> "SMTExpr":
+        """
+        Symbolically slice a single dimension of 'input_expr' array from 'start' (inclusive)
+        with length 'size' along 'dim', using 'stride'. For demonstration, we create an
+        uninterpreted function to stand in for the sliced array. In a real system, you'd
+        define a lambda expression that re-maps output indices to input indices.
+
+        e.g. if out_idx is flattened or multi-d, you'd shift the dimension 'dim' by start
+        and skip by stride.
+
+        We'll do a minimal placeholder approach returning a new z3.Function to show the concept.
+        """
+        # For a more thorough approach, you'd do something like:
+        # lam = z3.Lambda(..., z3.Select(...))
+        # mapping each index -> input_expr( index modified by offset & stride).
+        # We'll just do a minimal placeholder:
+        slice_fn = z3.Function("slice_placeholder", z3.IntSort(), z3.RealSort())
+        return SMTExpr(slice_fn)
+
     @property
-    def z3_expr(self):
+    def z3_expr(self) -> z3.ExprRef:
         return self.expr
 
 
 class ValueTy:
-    def __init__(self, value, vtype: str = "Unknown"):
+    def __init__(self, value: SMTExpr, vtype: str = "Unknown"):
         """
-        :param value: The underlying expression or data (an SMTExpr).
-        :param vtype: A string describing the type (e.g. "Float", "Integer", etc.)
+        :param value: The underlying expression (SMTExpr).
+        :param vtype: A string describing the 'type' (e.g. "Float", "Integer").
         """
         self.value = value
         self.vtype = vtype
@@ -60,10 +178,10 @@ class ValueTy:
 
 class RegFile:
     """
-    A simple registry mapping IR values (or nodes) to SMT expressions.
+    Registry mapping IR values or nodes -> ValueTy (with an SMTExpr).
     """
+
     def __init__(self):
-        # Keys are arbitrary (often strings or node objects); values are ValueTy.
         self.m: Dict[Any, ValueTy] = {}
 
     def addValueTy(self, v, valty: ValueTy):
@@ -94,20 +212,21 @@ class RegFile:
 
 class State:
     """
-    The symbolic state that holds:
-      - A precondition (an SMTExpr)
-      - A registry (RegFile) mapping IR nodes/values to SMT expressions (ValueTy)
-      - Additional bookkeeping such as well-definedness conditions.
+    Symbolic state storing:
+      - A precondition
+      - A registry of node->SMTExpr
+      - Well-definedness constraints
+      - Possibly memory state or other structures
     """
-    def __init__(self, init_mem):
-        # Start with a true precondition.
+
+    def __init__(self, init_mem: Optional[Any] = None):
         self.precond: SMTExpr = SMTExpr.mkBool(True)
         self.welldef: Dict[Any, Dict[str, SMTExpr]] = collections.defaultdict(dict)
         self.regs = RegFile()
-        self.retValues = []  # List of ValueTy if needed.
+        self.retValues = []
         self.hasQuantifier = False
         self.hasConstArray = False
-        self.m = init_mem  # Some memory representation (could be None).
+        self.m = init_mem
 
     def addPrecondition(self, e: SMTExpr):
         self.precond = self.precond & e
@@ -116,8 +235,7 @@ class State:
         if desc not in self.welldef[op]:
             self.welldef[op][desc] = e
         else:
-            combined = self.welldef[op][desc] & e
-            self.welldef[op][desc] = combined
+            self.welldef[op][desc] = self.welldef[op][desc] & e
 
     def preconditionExpr(self) -> SMTExpr:
         return self.precond
@@ -141,6 +259,15 @@ class State:
         if op not in self.welldef:
             return {}
         return dict(self.welldef[op])
+
+    def get_sort_from_shape(self, shape: Optional[tuple]) -> z3.Sort:
+        """
+        In a real system, for shape (d1, d2, ..., d_n), we'd represent a flattened array
+        from Int -> Real. If shape is None or empty, we can use RealSort for scalars.
+        """
+        if shape is None or len(shape) == 0:
+            return z3.RealSort()
+        return z3.ArraySort(z3.IntSort(), z3.RealSort())
 
     def __repr__(self):
         lines = []

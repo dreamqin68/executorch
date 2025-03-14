@@ -100,12 +100,14 @@ class Expr:
     def isUInt(self):
         """
         Returns (True, value) if this expression is a concrete unsigned integer
-        (in Python’s sense), or (False, None) otherwise.
+        (in Python's sense), or (False, None) otherwise.
         """
         if self.isNumeral():
             # Try to retrieve the value (this works if the expression is a concrete BV)
             try:
-                val = self.z3_expr.as_long()  # If it’s out of range, can raise an exception
+                val = (
+                    self.z3_expr.as_long()
+                )  # If it’s out of range, can raise an exception
                 return (True, val)
             except:
                 pass
@@ -300,7 +302,7 @@ class CheckResult:
 
     def isInconsistent(self) -> bool:
         """
-        Our simplified version can’t truly have both SAT and UNSAT. 
+        Our simplified version can't truly have both SAT and UNSAT.
         We just return False here.
         """
         return False

@@ -12,8 +12,11 @@ from executorch.exir.backend.backend_details import (
 
 # Import our SMT infrastructure
 from state import State, SMTExpr, RegFile
-from ops import encode_aten_add_tensor, encode_aten_mul_tensor
-from node_visitor import get_node_visitors, NodeVisitor  # our SMT node visitor
+from backends.smt.operators.ops import encode_aten_add_tensor, encode_aten_mul_tensor
+from backends.smt.operators.node_visitor import (
+    get_node_visitors,
+    NodeVisitor,
+)  # our SMT node visitor
 
 
 @final

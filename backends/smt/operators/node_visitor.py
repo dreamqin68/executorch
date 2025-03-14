@@ -2,13 +2,12 @@ from typing import Dict, Any, Optional, Type
 import torch
 from torch.export.exported_program import ExportedProgram
 from state import State, SMTExpr
-from ops import encode_aten_add_tensor, encode_aten_mul_tensor
+
+# from backends.smt.operators.ops import encode_aten_add_tensor, encode_aten_mul_tensor
 from utils import *
+from executorch.backends.transforms import get_shape
 
 
-# -----------------------------------------------------------------------------
-# SMT Node Visitor
-# -----------------------------------------------------------------------------
 class NodeVisitor:
     """
     Node visitor for converting Torch FX nodes into SMT expressions.
@@ -46,14 +45,14 @@ class NodeVisitor:
             if index is not None:
                 assert isinstance(index, int)
                 if is_parameter(node, self.edge_program):
-                    from ops import (
+                    from backends.smt.operators.ops import (
                         get_parameter,
                     )  # assuming get_parameter is in ops.py or utils.py
 
                     return get_parameter(node, self.edge_program)[index]
                 return node.meta["val"][index]
             if is_parameter(node, self.edge_program):
-                from ops import get_parameter
+                from backends.smt.operators.ops import get_parameter
 
                 return get_parameter(node, self.edge_program)
             return node.meta["val"]
