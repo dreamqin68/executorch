@@ -225,6 +225,26 @@ class SMTExpr:
         matmul_fn = z3.Function("matmul_placeholder", z3.IntSort(), z3.RealSort())
         return SMTExpr(matmul_fn)
 
+    @staticmethod
+    def reshape(
+        input_expr: "SMTExpr", old_shape: list[int], new_shape: list[int]
+    ) -> "SMTExpr":
+        """
+        Symbolically "reshape" input_expr from old_shape to new_shape.
+        In a real system, you'd define a lambda that re-maps flattened indices from
+        [0..prod(old_shape)) to [0..prod(new_shape)), or at least assert that
+        prod(old_shape) == prod(new_shape).
+        For demonstration, we do a placeholder uninterpreted function from Int->Real.
+        """
+        import z3
+
+        # We'll name an uninterpreted function with the shapes embedded, for debug:
+        fn_name = (
+            f"reshape_{'_'.join(map(str, old_shape))}_to_{'_'.join(map(str,new_shape))}"
+        )
+        reshape_fn = z3.Function(fn_name, z3.IntSort(), z3.RealSort())
+        return SMTExpr(reshape_fn)
+
     @property
     def z3_expr(self) -> z3.ExprRef:
         return self.expr

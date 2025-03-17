@@ -7,7 +7,7 @@ from backends.smt.operators.node_visitor import NodeVisitor, register_node_visit
 def get_relu_fused_node(node: torch.fx.Node):
     """
     Example helper. If your IR represents a fused ReLU as a subsequent user node,
-    detect it. This is purely optional – if you don't handle fusions, you can skip it.
+    detect it. This is purely optional - if you don't handle fusions, you can skip it.
     """
     if len(node.users) == 1:
         user_node = list(node.users.keys())[0]
