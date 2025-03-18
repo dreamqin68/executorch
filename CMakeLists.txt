@@ -224,6 +224,8 @@ option(EXECUTORCH_BUILD_SIZE_TEST "Build the size test" OFF)
 
 option(EXECUTORCH_BUILD_XNNPACK "Build the XNNPACK backend" OFF)
 
+option(EXECUTORCH_BUILD_SMT "Build the SMT backend" OFF)
+
 option(EXECUTORCH_BUILD_VULKAN "Build the Vulkan backend" OFF)
 
 option(BUILD_EXECUTORCH_PORTABLE_OPS "Build portable_ops library" ON)
@@ -672,6 +674,10 @@ if(EXECUTORCH_BUILD_XNNPACK)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/backends/xnnpack)
 endif()
 
+if(EXECUTORCH_BUILD_SMT)
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/backends/smt)
+endif()
+
 if(EXECUTORCH_BUILD_DEVTOOLS)
   set(EXECUTORCH_BUILD_EXTENSION_DATA_LOADER
       ON
@@ -757,6 +763,10 @@ if(EXECUTORCH_BUILD_PYBIND)
     # here otherwise uses XNNPACK and microkernel-prod symbols from libtorch_cpu
     list(APPEND _dep_libs xnnpack_backend XNNPACK microkernels-prod)
   endif()
+
+  # if(EXECUTORCH_BUILD_SMT)
+  #   list(APPEND _dep_libs smt_backend SMT)
+  # endif()
 
   # compile options for pybind
   set(_pybind_compile_options

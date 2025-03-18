@@ -1,104 +1,100 @@
-from typing import Dict, Any, Optional, Type
+from typing import Dict, Any
 import torch
-from torch.export.exported_program import ExportedProgram
-from state import State, SMTExpr
+from torch.export import ExportedProgram
 
-# from backends.smt.operators.ops import encode_aten_add_tensor, encode_aten_mul_tensor
-from utils import *
-from executorch.backends.transforms import get_shape
+from backends.smt.state import State, SMTExpr
 
 
 class NodeVisitor:
     """
-    Node visitor for converting Torch FX nodes into SMT expressions.
+    Node visitor pattern for visiting nodes in an edge IR graph
+    and converting them into SMT expressions.
+
+    This parallels the approach in xnnpack/operators/node_visitor.py:
+      - A single dictionary `_node_visitor_dict` storing a single
+        visitor class for each `target`.
+      - A `register_node_visitor` that updates `_node_visitor_dict`.
+      - A `get_node_visitors` that instantiates them.
+
+    Subclasses must specify `target` (a string) and implement `define_node`.
     """
 
-    # Targets that this visitor supports.
-    target: list[str] = ["aten.add.Tensor", "aten.mul.Tensor"]
+    # The `target` is the Torch FX op name (str) that this visitor can handle.
+    target: str = ""
 
     def __init__(
         self,
-        external_ids: Optional[Dict[Any, int]],
-        edge_program: ExportedProgram,
+        exported_program: ExportedProgram,
+        external_ids: Dict[Any, int] = None,
         enable_debug: bool = False,
     ) -> None:
-        self.external_ids: Dict[Any, int] = external_ids or {}
-        self.edge_program: ExportedProgram = edge_program
-        self.enable_debug: bool = enable_debug
+        """
+        :param exported_program: The ExportedProgram for referencing IR, parameters, etc.
+        :param external_ids: A mapping from Node -> external id if needed for placeholders
+        :param enable_debug: Whether to print debug info
+        """
+        self._exported_program = exported_program
+        self._external_ids = external_ids or {}
+        self._enable_debug = enable_debug
 
     @property
     def exported_program(self) -> ExportedProgram:
-        # Return the exported program.
-        return self.edge_program
+        return self._exported_program
 
-    def get_tensor(
-        self,
-        input_node: torch.fx.Node,
-        op_node: torch.fx.Node,
-        idx: Optional[int] = None,
-    ) -> Any:
-        """
-        Get the tensor value/shape for a given input node.
-        """
-
-        def _get_tensor(node: torch.fx.Node, index: Optional[int]) -> Any:
-            if index is not None:
-                assert isinstance(index, int)
-                if is_parameter(node, self.edge_program):
-                    from backends.smt.operators.ops import (
-                        get_parameter,
-                    )  # assuming get_parameter is in ops.py or utils.py
-
-                    return get_parameter(node, self.edge_program)[index]
-                return node.meta["val"][index]
-            if is_parameter(node, self.edge_program):
-                from backends.smt.operators.ops import get_parameter
-
-                return get_parameter(node, self.edge_program)
-            return node.meta["val"]
-
-        tensor = _get_tensor(input_node, idx)
-        return tensor
+    @property
+    def external_ids(self) -> Dict[Any, int]:
+        return self._external_ids
 
     def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
         """
-        Convert a given node into an SMT expression by invoking the corresponding
-        encoding function and binding the result in the state's register file.
+        Converts the given FX node into an SMT expression,
+        storing it in 'state' or returning it.
+        Must be implemented by subclasses.
         """
-        if node.target == torch.ops.aten.add.Tensor:
-            result = encode_aten_add_tensor(state, node)
-        elif node.target == torch.ops.aten.mul.Tensor:
-            result = encode_aten_mul_tensor(state, node)
-        else:
-            raise NotImplementedError(f"Unsupported node target: {node.target}")
-
-        if self.enable_debug:
-            print(f"[DEBUG] Node {node} encoded to SMT expression: {result}")
-        return result
+        raise NotImplementedError("NodeVisitor must be extended!")
 
 
-_node_visitor_dict: Dict[str, Type[NodeVisitor]] = {}
+_node_visitor_dict: Dict[str, NodeVisitor] = {}
 
 
-def register_node_visitor(visitor_cls: Type[NodeVisitor]):
+def register_node_visitor(visitor_cls: type) -> type:
     """
-    Register an SMT node visitor class for each target op it supports.
+    Decorator or function used to register a NodeVisitor subclass with a unique `target`.
+    This parallels xnnpack's pattern, but for SMT.
     """
-    # Ensure the class is a subclass of NodeVisitor.
-    assert isinstance(visitor_cls, type) and issubclass(visitor_cls, NodeVisitor)
-    for target in visitor_cls.target:
-        _node_visitor_dict[target] = visitor_cls
+    if not issubclass(visitor_cls, NodeVisitor):
+        raise TypeError(
+            f"Ill-formed NodeVisitor subclass: {visitor_cls}. Must inherit from NodeVisitor."
+        )
+    if not hasattr(visitor_cls, "target"):
+        raise AttributeError(
+            f"Visitor class {visitor_cls.__name__} must define a 'target' attribute."
+        )
+    if not isinstance(visitor_cls.target, str):
+        raise TypeError(
+            f"Visitor class {visitor_cls.__name__} has a 'target' that is not a string."
+        )
+
+    _node_visitor_dict[visitor_cls.target] = visitor_cls
+    return visitor_cls
 
 
 def get_node_visitors(
-    edge_program: ExportedProgram, enable_debug: bool = False
+    exported_program: ExportedProgram,
+    external_ids: Dict[Any, int] = None,
+    enable_debug: bool = False,
 ) -> Dict[str, NodeVisitor]:
     """
-    Instantiate and return a dictionary mapping from target op names to an instance
-    of the SMT node visitor.
+    Create and return a dictionary:
+      op_target_name -> NodeVisitor instance
+
+    This is similar to xnnpack's get_node_visitors,
+    except for the SMT domain. We instantiate each
+    registered visitor with the same arguments.
     """
-    visitors: Dict[str, NodeVisitor] = {}
+    node_visitors: Dict[str, NodeVisitor] = {}
     for target, visitor_cls in _node_visitor_dict.items():
-        # For simplicity, external_ids is passed as an empty dictionary.
-        visitors[target] = visitor_cls({}, edge_program, enable_debug)
-    return visitors
+        node_visitors[target] = visitor_cls(
+            exported_program, external_ids, enable_debug
+        )
+    return node_visitors

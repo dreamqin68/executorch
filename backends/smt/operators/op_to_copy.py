@@ -10,7 +10,7 @@ PERM_NHWC_TO_NCHW = [0, 3, 1, 2]
 
 @register_node_visitor
 class ConvertMemoryFormatVisitor(NodeVisitor):
-    target = "aten._to_copy.default"
+    target = ["aten.clone.default", "aten._to_copy.default"]
 
     def __init__(self, *args) -> None:
         super().__init__(*args)
