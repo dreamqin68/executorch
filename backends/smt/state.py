@@ -4,10 +4,8 @@ import collections
 
 
 class SMTExpr:
-    """A wrapper for a Z3 expression, often representing a tensor as an array."""
 
     def __init__(self, expr: z3.ExprRef):
-        # expr is a z3.ExprRef, either a Bool, Int, Real, or Array, etc.
         self.expr = expr
 
     def __and__(self, other: "SMTExpr") -> "SMTExpr":
@@ -46,20 +44,10 @@ class SMTExpr:
 
     @staticmethod
     def var(name: str, bitwidth: int = 32) -> "SMTExpr":
-        """
-        Creates a fresh variable of BitVec sort (for demonstration).
-        In a real system, you might prefer Real or a more specialized sort.
-        """
         return SMTExpr(z3.BitVec(name, bitwidth))
 
     @staticmethod
     def mkConst(val: Any) -> "SMTExpr":
-        """
-        Create a Z3 constant from a Python value.
-          - int -> IntVal
-          - float -> RealVal
-          - otherwise assume val is already a z3.ExprRef or we treat it as is.
-        """
         if isinstance(val, int):
             return SMTExpr(z3.IntVal(val))
         elif isinstance(val, float):
@@ -70,67 +58,23 @@ class SMTExpr:
 
     @staticmethod
     def gather(weight_expr: "SMTExpr", indices_expr: "SMTExpr") -> "SMTExpr":
-        """
-        Implements a simple gather operation.
-        For demonstration, we assume weight_expr is an Array, and indices_expr is a scalar
-        that references the index. We model gather as z3.Select(weight_expr, indices_expr).
-
-        For a real system that handles vectorized indices, you'd expand this to a loop or
-        a lambda expression mapping each index in indices_expr to a Select call.
-        """
         return SMTExpr(z3.Select(weight_expr.expr, indices_expr.expr))
 
     @staticmethod
     def transpose(self, shape: List[int], perm: List[int]) -> "SMTExpr":
-        """
-        Symbolically transpose (or permute dimensions of) this array expression.
-        In a real system, you'd:
-          1) represent 'self.expr' as an array from int -> real,
-          2) break the index i into multi-dimensional indices,
-          3) reorder them according to 'perm',
-          4) flatten them back to a 1D index,
-          5) build a lambda expression mapping i -> Select(old_expr, new_index).
-
-        For demonstration, we define a placeholder approach that uses an
-        uninterpreted function representing the transposed array.
-        """
-        # For a real approach, you'd define a new array e.g.:
-        #   i = z3.Int("i_tr")
-        #   lam = z3.Lambda( i, z3.Select(self.expr, reorderIndex(i, shape, perm)) )
-        # then return SMTExpr(lam)
-        # Here we do a minimal placeholder:
-
-        # Create an uninterpreted function name that references this expression.
         name_hint = "trans_of_"
-        # If self.expr is a function or array, we might have a name:
+
         if self.expr.decl().kind() == z3.Z3_OP_UNINTERPRETED:
             base_name = self.expr.decl().name()
             fun_name = f"{name_hint}{base_name}"
         else:
             fun_name = f"{name_hint}arr"
 
-        # Create an uninterpreted function from Int -> Real,
-        # modeling the transposed array as a new function.
-        # A real system would do a lambda re-mapping.
         trans_fn = z3.Function(fun_name, z3.IntSort(), z3.RealSort())
         return SMTExpr(trans_fn)
 
     @staticmethod
     def global_avg_pool_2d(input_expr: "SMTExpr", shape_4d: tuple) -> "SMTExpr":
-        """
-        Placeholder for a 'global average pooling over last two dims' of a 4D tensor.
-        shape_4d is expected to be (N, C, H, W).
-
-        In a real system, you'd define a new lambda expression or
-        an uninterpreted function that asserts for each (n, c)
-        the result = sum_{h,w} input_expr[n,c,h,w] / (H*W).
-        For demonstration, we produce an uninterpreted function 'gap' of type
-        (Int, Int) -> Real
-        that stands in for that result for each (n,c).
-        """
-        # This is a minimal placeholder approach.
-        # We'll create a new Z3 function with name 'gap_placeholder'
-        # from Int->Real, ignoring that we actually have 2 dims for (n,c).
         gap_fn = z3.Function("gap_placeholder", z3.IntSort(), z3.RealSort())
         return SMTExpr(gap_fn)
 
@@ -143,21 +87,7 @@ class SMTExpr:
         size: int,
         stride: int = 1,
     ) -> "SMTExpr":
-        """
-        Symbolically slice a single dimension of 'input_expr' array from 'start' (inclusive)
-        with length 'size' along 'dim', using 'stride'. For demonstration, we create an
-        uninterpreted function to stand in for the sliced array. In a real system, you'd
-        define a lambda expression that re-maps output indices to input indices.
 
-        e.g. if out_idx is flattened or multi-d, you'd shift the dimension 'dim' by start
-        and skip by stride.
-
-        We'll do a minimal placeholder approach returning a new z3.Function to show the concept.
-        """
-        # For a more thorough approach, you'd do something like:
-        # lam = z3.Lambda(..., z3.Select(...))
-        # mapping each index -> input_expr( index modified by offset & stride).
-        # We'll just do a minimal placeholder:
         slice_fn = z3.Function("slice_placeholder", z3.IntSort(), z3.RealSort())
         return SMTExpr(slice_fn)
 
@@ -169,12 +99,7 @@ class SMTExpr:
         mask_expr: "SMTExpr",
         scale_expr: "SMTExpr",
     ) -> "SMTExpr":
-        """
-        Placeholder for scaled dot-product attention:
-        result = softmax((q x k^T)*scale + mask) x v
-        A real system might create a function or lambda that does a matrix multiply and
-        a softmax. Here we do a minimal uninterpreted function returning an array.
-        """
+
         sdpa_fn = z3.Function("sdpa_placeholder", z3.IntSort(), z3.RealSort())
         return SMTExpr(sdpa_fn)
 
@@ -182,46 +107,18 @@ class SMTExpr:
     def select_dim(
         input_expr: "SMTExpr", shape: list[int], dim: int, index: int
     ) -> "SMTExpr":
-        """
-        Symbolically select along dimension `dim` at a single `index`.
-        For demonstration, we create an uninterpreted function that stands for
-        'input_expr sliced at dim=dim, index=index'.
-        A real system might define a reindexing lambda.
-
-        shape is the original shape of input_expr.
-        We note that dimension `dim` is removed from the shape by 1.
-        """
 
         select_fn = z3.Function("select_dim_placeholder", z3.IntSort(), z3.RealSort())
         return SMTExpr(select_fn)
 
     @staticmethod
     def concat(inputs: List["SMTExpr"], axis: int) -> "SMTExpr":
-        """
-        Placeholder for a 'concatenate' op across 'axis'.
-        For a real system, you'd define a new array expression that, for each index i,
-        decides which input array it comes from based on i's offset in dimension axis.
-        We do a minimal placeholder approach returning an uninterpreted function:
-        concat_placeholder_axis_{axis}: Int -> Real
-        If you want to handle multi-dimensional indexing precisely, you'd do a lambda
-        that re-maps indices for each input in the specified 'axis' dimension.
-        """
-
-        # We'll just name a function based on how many inputs and the axis
         fun_name = f"concat_placeholder_axis_{axis}_inputs_{len(inputs)}"
         cat_fn = z3.Function(fun_name, z3.IntSort(), z3.RealSort())
         return SMTExpr(cat_fn)
 
     @staticmethod
     def matmul(a_expr: "SMTExpr", b_expr: "SMTExpr") -> "SMTExpr":
-        """
-        Placeholder for matrix multiply of two 2D (or higher) arrays.
-        In a real system, you'd define constraints or a lambda for each
-        output element = sum(a_expr[i,k] * b_expr[k,j]).
-        For demonstration, we do an uninterpreted function from Int -> Real.
-        """
-
-        # We'll just create an uninterpreted function – a placeholder approach.
         matmul_fn = z3.Function("matmul_placeholder", z3.IntSort(), z3.RealSort())
         return SMTExpr(matmul_fn)
 
@@ -229,14 +126,6 @@ class SMTExpr:
     def reshape(
         input_expr: "SMTExpr", old_shape: list[int], new_shape: list[int]
     ) -> "SMTExpr":
-        """
-        Symbolically "reshape" input_expr from old_shape to new_shape.
-        In a real system, you'd define a lambda that re-maps flattened indices from
-        [0..prod(old_shape)) to [0..prod(new_shape)), or at least assert that
-        prod(old_shape) == prod(new_shape).
-        For demonstration, we do a placeholder uninterpreted function from Int->Real.
-        """
-        # We'll name an uninterpreted function with the shapes embedded, for debug:
         fn_name = (
             f"reshape_{'_'.join(map(str, old_shape))}_to_{'_'.join(map(str,new_shape))}"
         )
@@ -245,23 +134,12 @@ class SMTExpr:
 
     @staticmethod
     def transpose_nd(input_expr: "SMTExpr", perm: list[int]) -> "SMTExpr":
-        """
-        Symbolically transpose (or permute) a multi-dimensional array expression according to 'perm'.
-        This is a placeholder approach returning an uninterpreted function.
-        In a real system, you might define a lambda that reindexes each element.
-        """
-        # We'll embed the permutation in the function name for reference
         fn_name = "transpose_nd_" + "_".join(map(str, perm))
         trans_fn = z3.Function(fn_name, z3.IntSort(), z3.RealSort())
         return SMTExpr(trans_fn)
 
     @staticmethod
     def mm(a_expr: "SMTExpr", b_expr: "SMTExpr") -> "SMTExpr":
-        """
-        Symbolically represent a 2D matrix multiply, 'mm' for (M x K) x (K x N).
-        Real system would define sum_{k}(a_expr[m,k] * b_expr[k,n]).
-        We do a placeholder uninterpreted function for demonstration.
-        """
         fn = z3.Function("mm_placeholder", z3.IntSort(), z3.RealSort())
         return SMTExpr(fn)
 
@@ -269,23 +147,11 @@ class SMTExpr:
     def scatter_nd(
         input_expr: "SMTExpr", indices_expr: "SMTExpr", value_expr: "SMTExpr"
     ) -> "SMTExpr":
-        """
-        Symbolically represent a scatter_nd-like op:
-        output = input_expr updated at 'indices_expr' with 'value_expr'.
-        In a real system, you'd define constraints for each index that picks from 'value_expr'
-        if the coordinate matches, else from input_expr. For demonstration, we define an
-        uninterpreted function from Int->Real:
-        """
         scatter_fn = z3.Function("scatter_nd_placeholder", z3.IntSort(), z3.RealSort())
         return SMTExpr(scatter_fn)
 
     @staticmethod
     def unsqueeze(input_expr: "SMTExpr", dim: int) -> "SMTExpr":
-        """
-        Symbolically unsqueeze by adding a size-1 dimension at 'dim'.
-        For demonstration, we define an uninterpreted function. A real system
-        might define constraints or a lambda that reindexes.
-        """
 
         fn_name = f"unsqueeze_dim_{dim}_placeholder"
         unsq_fn = z3.Function(fn_name, z3.IntSort(), z3.RealSort())
@@ -295,36 +161,19 @@ class SMTExpr:
     def expand(
         input_expr: "SMTExpr", old_shape: list[int], new_shape: list[int]
     ) -> "SMTExpr":
-        """
-        Symbolically represent an expand (or tile) operation.
-        If the old dimension is 1 and the new dimension is bigger, we replicate
-        the data. We do a placeholder approach with an uninterpreted function.
 
-        In a real system, you'd define constraints or a reindexing lambda that
-        replicates dimension(s).
-        """
         fn_name = f"expand_placeholder_{'_'.join(map(str,old_shape))}_to_{'_'.join(map(str,new_shape))}"
         expand_fn = z3.Function(fn_name, z3.IntSort(), z3.RealSort())
         return SMTExpr(expand_fn)
 
     @staticmethod
     def bmm(a_expr: "SMTExpr", b_expr: "SMTExpr") -> "SMTExpr":
-        """
-        Symbolically represent a batch matrix multiply of two 3D tensors:
-        shape [batch, m, k] x [batch, k, n].
-        A real system might define constraints for each index (b, i, j).
-        For demonstration, we define an uninterpreted function as a placeholder.
-        """
+
         fn = z3.Function("bmm_placeholder", z3.IntSort(), z3.RealSort())
         return SMTExpr(fn)
 
     @staticmethod
     def dim_order_copy(input_expr: "SMTExpr") -> "SMTExpr":
-        """
-        Symbolically represent a dim_order_copy.
-        Typically, it's a no-op for data - or we can treat it as
-        an uninterpreted function. We'll do a placeholder:
-        """
         placeholder_fn = z3.Function(
             "dim_order_copy_placeholder", z3.IntSort(), z3.RealSort()
         )
@@ -332,10 +181,6 @@ class SMTExpr:
 
     @staticmethod
     def softmax(input_expr: "SMTExpr", dim: int) -> "SMTExpr":
-        """
-        Symbolically represent a softmax across 'dim'. A real approach might define
-        constraints sum(exp(x_i)/sum_j exp(x_j)). We'll do a placeholder for demonstration.
-        """
         fn_name = f"softmax_dim_{dim}_placeholder"
         softmax_fn = z3.Function(fn_name, z3.IntSort(), z3.RealSort())
         return SMTExpr(softmax_fn)
@@ -347,10 +192,6 @@ class SMTExpr:
 
 class ValueTy:
     def __init__(self, value: SMTExpr, vtype: str = "Unknown"):
-        """
-        :param value: The underlying expression (SMTExpr).
-        :param vtype: A string describing the 'type' (e.g. "Float", "Integer").
-        """
         self.value = value
         self.vtype = vtype
 
@@ -359,9 +200,6 @@ class ValueTy:
 
 
 class RegFile:
-    """
-    Registry mapping IR values or nodes -> ValueTy (with an SMTExpr).
-    """
 
     def __init__(self):
         self.m: Dict[Any, ValueTy] = {}
@@ -393,13 +231,6 @@ class RegFile:
 
 
 class State:
-    """
-    Symbolic state storing:
-      - A precondition
-      - A registry of node->SMTExpr
-      - Well-definedness constraints
-      - Possibly memory state or other structures
-    """
 
     def __init__(self, init_mem: Optional[Any] = None):
         self.precond: SMTExpr = SMTExpr.mkBool(True)
@@ -443,10 +274,6 @@ class State:
         return dict(self.welldef[op])
 
     def get_sort_from_shape(self, shape: Optional[tuple]) -> z3.Sort:
-        """
-        In a real system, for shape (d1, d2, ..., d_n), we'd represent a flattened array
-        from Int -> Real. If shape is None or empty, we can use RealSort for scalars.
-        """
         if shape is None or len(shape) == 0:
             return z3.RealSort()
         return z3.ArraySort(z3.IntSort(), z3.RealSort())

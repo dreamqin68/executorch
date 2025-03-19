@@ -13,21 +13,13 @@ class BMMVisitor(NodeVisitor):
         super().__init__(*args)
 
     def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
-        """
-        Encode a batch matrix multiply (bmm) in an SMT backend.
-        The node typically has shape [B, M, K] x [B, K, N].
-        We define an uninterpreted function or placeholder constraints for the result.
-        """
-        # 1) retrieve input expressions
         a_node = node.args[0]
         b_node = node.args[1]
         a_expr = self.define_tensor(a_node, state)
         b_expr = self.define_tensor(b_node, state)
 
-        # 2) build the BMM expression
         bmm_expr = SMTExpr.bmm(a_expr, b_expr)
 
-        # 3) store the result in the symbolic state
         state.regs.addExpr(node, bmm_expr, "Tensor")
 
         if self._debug:

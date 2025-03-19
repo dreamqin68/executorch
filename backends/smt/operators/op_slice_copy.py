@@ -17,17 +17,10 @@ class SliceCopyVisitor(NodeVisitor):
         super().__init__(*args)
 
     def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
-        """
-        Encode a slice_copy operation in the SMT domain.
-        This is a restricted version that handles the stride=1 case from XNNPack
-        and re-maps the dimension. For a real system, we do a symbolic array slice.
-        """
-        # 1) define the input expression
         input_node = node.args[0]
         in_expr = self.define_tensor(input_node, state)
 
-        # 2) parse dimension, start, length, etc.
-        dim_of_slice = cast(int, node.args[1])  # e.g. the user sets dim
+        dim_of_slice = cast(int, node.args[1])
         slice_begin_index = cast(int, node.args[2])
         slice_end_index = cast(int, node.args[3]) if len(node.args) >= 4 else None
         stride = cast(int, node.args[4]) if len(node.args) >= 5 else 1
@@ -37,7 +30,6 @@ class SliceCopyVisitor(NodeVisitor):
                 "SMT slice_copy only handles stride=1 for demonstration"
             )
 
-        # If shape is stored in meta, we can handle negative indexes etc.
         shape = getattr(input_node, "meta", {}).get("shape", None)
         if shape is not None and dim_of_slice < 0:
             dim_of_slice += len(shape)
@@ -45,11 +37,9 @@ class SliceCopyVisitor(NodeVisitor):
         if shape is not None and slice_begin_index < 0:
             slice_begin_index = shape[dim_of_slice] + slice_begin_index
 
-        # We infer size from the output shape if available
         output_shape = getattr(node, "meta", {}).get("shape", None)
         size_val = None
         if output_shape is not None:
-            # The length along dim is e.g. output_shape[dim_of_slice].
             size_val = output_shape[dim_of_slice]
         elif slice_end_index is not None:
             size_val = slice_end_index - slice_begin_index
@@ -58,7 +48,6 @@ class SliceCopyVisitor(NodeVisitor):
                 "Cannot deduce slice size for SMT if no output shape or slice_end provided"
             )
 
-        # 3) For demonstration, define a new "sliced" expression:
         sliced_expr = SMTExpr.slice(
             input_expr=in_expr,
             shape=shape if shape else [],
@@ -68,7 +57,6 @@ class SliceCopyVisitor(NodeVisitor):
             stride=1,
         )
 
-        # 4) Bind the slice to the current node
         state.regs.addExpr(node, sliced_expr, "Tensor")
 
         if self._debug:
