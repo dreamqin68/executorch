@@ -2,7 +2,7 @@ from typing import Dict, Any
 import torch
 from torch.export import ExportedProgram
 
-from backends.smt.state import State, SMTExpr
+from executorch.backends.smt.state import State, SMTExpr
 
 
 class NodeVisitor:

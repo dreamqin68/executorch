@@ -1,7 +1,10 @@
 from typing import cast, Dict, List
 import torch
-from backends.smt.state import State, SMTExpr
-from backends.smt.operators.node_visitor import NodeVisitor, register_node_visitor
+from executorch.backends.smt.state import State, SMTExpr
+from executorch.backends.smt.operators.node_visitor import (
+    NodeVisitor,
+    register_node_visitor,
+)
 
 # If you need dimension reorder constants:
 PERM_NHWC_TO_NCHW = [0, 3, 1, 2]

@@ -11,8 +11,11 @@ from executorch.exir.backend.backend_details import (
 )
 from executorch.exir.verification.verifier import EXIREdgeDialectVerifier
 
-from backends.smt.state import State, SMTExpr
-from backends.smt.operators.node_visitor import get_node_visitors, NodeVisitor
+from executorch.backends.smt.state import State, SMTExpr
+from executorch.backends.smt.operators.node_visitor import (
+    get_node_visitors,
+    NodeVisitor,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

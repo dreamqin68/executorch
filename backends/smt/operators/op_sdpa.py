@@ -1,7 +1,10 @@
 import torch
 from typing import Dict, cast
-from backends.smt.state import State, SMTExpr
-from backends.smt.operators.node_visitor import NodeVisitor, register_node_visitor
+from executorch.backends.smt.state import State, SMTExpr
+from executorch.backends.smt.operators.node_visitor import (
+    NodeVisitor,
+    register_node_visitor,
+)
 
 
 @register_node_visitor
