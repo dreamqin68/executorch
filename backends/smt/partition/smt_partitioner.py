@@ -1,142 +1,168 @@
-import logging
-from typing import List, Optional, Union
+import copy
+from collections import defaultdict
+from typing import Any, Dict, List, Optional
 
-from executorch.exir.backend.backend_details import ExportedProgram
-from executorch.exir.backend.partitioner import DelegationSpec
-from executorch.exir.backend.canonical_partitioners.config_partitioner import (
-    ConfigerationBasedPartitioner,
-)
+import torch
 from torch.fx.passes.infra.partitioner import Partition
-
+from torch.fx.passes.operator_support import OperatorSupportBase
 from executorch.backends.smt.smt_preprocess import SMTBackend
+from executorch.backends.smt.operators import node_visitor
+from executorch.exir.backend.backend_details import CompileSpec
+from executorch.exir.backend.canonical_partitioners.pattern_op_partitioner import (
+    generate_partitions_from_list_of_nodes,
+)
+from executorch.exir.backend.partitioner import (
+    DelegationSpec,
+    Partitioner,
+    PartitionResult,
+)
+from executorch.exir.backend.utils import tag_constant_data
+
+from executorch.backends.smt.partition.common_defs import (
+    allow_list_operator,
+    not_supported_operator,
+    to_be_implemented_operator,
+)
 
 
-class SMTPartitionerConfig:
+class SmtOperatorSupport(OperatorSupportBase):
     """
-    Represents a single set of "rules" or "constraints" for how to create
-    partitions for the SMT backend.
-
-    In principle, each config might say something like:
-    - Which ops to gather together as one partition for symbolic checking
-    - Which ops to skip, etc.
-
-    For illustration, we'll keep it very simple.
-    """
-
-    def __init__(self, config_name: str = "default-smt"):
-        self.config_name = config_name
-
-    def match_nodes(self, ep: ExportedProgram) -> List[List]:
-        """
-        Return a list of node “clusters,” each cluster is a subgraph of nodes
-        that we want to feed to the SMT backend.
-        For demonstration, we just say every `aten.add.Tensor` or
-        `aten.mul.Tensor` is its own cluster.
-        """
-        matched_clusters = []
-
-        # We'll do a naive pass:
-        for node in ep.graph_module.graph.nodes:
-            if node.op == "call_function":
-                # Suppose we only support add/mul for the example
-                # In a real config, we might have more sophisticated checks
-                if hasattr(node.target, "__name__") and node.target.__name__ in (
-                    "add",
-                    "mul",
-                ):
-                    # Put the single node in a cluster
-                    matched_clusters.append([node])
-        return matched_clusters
-
-
-# This is just an example list of all possible configs for demonstration
-ALL_SMT_PARTITIONER_CONFIGS = [SMTPartitionerConfig]
-
-
-class SMTPartitioner(ConfigerationBasedPartitioner):
-    """
-    Similar to XnnpackPartitioner but for the SMT backend.
-
-    In most real systems, you might have multiple different “config classes”
-    that define how to group ops for symbolic checking. You then pick one or
-    more to pass here. For example, you might have a “FullGraphSMTConfig”
-    vs “AddMulOnlySMTConfig,” etc.
+    Checks if a node can be supported by the SMT backend.
     """
 
     def __init__(
         self,
-        configs: Optional[List[type]] = None,
-        # Just a placeholder for demonstration:
-        config_mode: Optional[str] = None,
-        verbose: bool = False,
-        **kwargs,
+        edge_program: torch.export.ExportedProgram,
+        compiler_specs: Optional[List[CompileSpec]] = None,
+        skip_node_id_set: set = None,
+        skip_node_op_set: set = None,
     ):
-        """
-        :param configs: A list of partitioner config classes to use.
-        :param config_mode: Possibly how we want to partition (per-op, or merges).
-        :param verbose: If True, logs more details about the partitioning.
-        :param kwargs: Any additional arguments passed to the config classes.
-        """
-        if verbose:
-            logging.basicConfig(level=logging.DEBUG)
-            logging.debug("Verbose logging enabled for SMT partitioner.")
-        else:
-            logging.basicConfig(level=logging.INFO)
+        self.node_visitors = node_visitor.get_node_visitors(edge_program)
 
-        # The “delegation_spec” says we’re going to use the `SMTBackend`.
-        delegation_spec = DelegationSpec(
-            backend_name=SMTBackend.__name__, backend_args=[]
+        self.skip_node_op_set = skip_node_op_set
+        self.skip_node_id_set = skip_node_id_set
+
+        # This dictionary can store any node → wrapper mapping, if your
+        # backend uses them. For example: node → visitor data
+        self.nodes_to_wrappers = defaultdict(dict)
+
+    def is_node_supported(self, _, node: torch.fx.Node) -> bool:
+        # Only proceed if it's a call_function node that’s not in the “not supported” set
+        if node.op != "call_function" or node.target in not_supported_operator:
+            return False
+
+        # If the op is known but not yet implemented
+        if node.target in to_be_implemented_operator:
+            print(
+                f"[SMT Partitioner Op Support]: {node.target.__name__} | "
+                "Skipped - to be implemented in the future."
+            )
+            return False
+
+        # If this node is explicitly to be skipped by ID or by op name
+        if (node.name in self.skip_node_id_set) or (
+            node.target.__name__ in self.skip_node_op_set
+        ):
+            print(
+                f"[SMT Partitioner Op Support]: {node.target.__name__} | Skipped by config."
+            )
+            return False
+
+        # If the op is in the allow-list or a recognized custom op, continue:
+        if node.target in allow_list_operator:
+            return True
+
+        return False
+
+
+class SmtPartitioner(Partitioner):
+    """
+    Partitioner for the SMT backend. It determines which nodes or subgraphs
+    are delegated to the SMT backend by grouping them into partitions.
+    """
+
+    def __init__(
+        self,
+        compiler_specs: Optional[List[CompileSpec]] = None,
+        skip_node_id_set: set = None,
+        skip_node_op_set: set = None,
+    ):
+        # Make a local copy in case the specs are modified externally
+        self.compiler_specs_snapshot = copy.deepcopy(compiler_specs)
+
+        # This name might match your actual backend class name
+        self.delegation_spec = DelegationSpec(
+            SMTBackend.__name__, self.compiler_specs_snapshot
+        )
+        self.partition_tags: Dict[str, DelegationSpec] = {}
+
+        self.skip_node_id_set = set() if skip_node_id_set is None else skip_node_id_set
+        self.skip_node_op_set = set() if skip_node_op_set is None else skip_node_op_set
+
+        self.op_support_checker: SmtOperatorSupport = None
+
+    def generate_partitions(
+        self, edge_program: torch.export.ExportedProgram
+    ) -> List[Partition]:
+        """
+        Creates partitions by grouping nodes that are supported by the SMT backend.
+        Uses “generate_partitions_from_list_of_nodes” from the pattern-based partitioner.
+        """
+        self.op_support_checker = SmtOperatorSupport(
+            edge_program=edge_program,
+            compiler_specs=self.compiler_specs_snapshot,
+            skip_node_id_set=self.skip_node_id_set,
+            skip_node_op_set=self.skip_node_op_set,
+        )
+        return generate_partitions_from_list_of_nodes(
+            edge_program.graph_module,
+            op_support=self.op_support_checker,
         )
 
-        # If user did not specify configs, use the defaults
-        configs_to_use = configs or ALL_SMT_PARTITIONER_CONFIGS
-
-        initialized_configs = []
-        for cfg_cls in configs_to_use:
-            cfg_instance = cfg_cls(**kwargs)
-            initialized_configs.append(cfg_instance)
-
-        self.config_mode = config_mode
-        super().__init__(delegation_spec, initialized_configs)
-
-    def generate_partitions(self, ep: ExportedProgram) -> List[Partition]:
+    def tag_nodes(
+        self, partitions: List[Partition], edge_program: torch.export.ExportedProgram
+    ) -> None:
         """
-        If self.config_mode == "per_op", we do single-node partitions for each matched op,
-        else we do the standard config-based approach, which merges nodes if the config
-        says so.
+        Assigns each node to a partition by adding a 'delegation_tag' meta.
+        This lets subsequent compilation steps know which backend to delegate to.
         """
-        if self.config_mode == "per_op":
-            return self._generate_per_op_partitions(ep)
-        else:
-            return super().generate_partitions(ep)
+        for partition in partitions:
+            for node in partition.nodes:
+                delegation_tag = f"smt_{partition.id}"
+                node.meta["delegation_tag"] = delegation_tag
+                # Keep track of the partition → DelegationSpec
+                self.partition_tags[delegation_tag] = self.delegation_spec
 
-    def _generate_per_op_partitions(self, ep: ExportedProgram) -> List[Partition]:
+        # Tag consumed constants so that if the constants are removed later,
+        # they still know they belonged to this partition. (Similar to QNN code.)
+        consumed_constants = (
+            *edge_program.graph_signature.inputs_to_buffers,
+            *edge_program.graph_signature.inputs_to_parameters,
+        )
+        # Example logic: placeholders with no users & are consumed constants → same tag
+        for node in edge_program.graph_module.graph.nodes:
+            if node.op == "placeholder" and node.name in consumed_constants:
+                node.meta["delegation_tag"] = f"smt_{partitions[-1].id}"
+
+    def partition(self, edge_program: torch.export.ExportedProgram) -> PartitionResult:
         """
-        In a “per-op” mode, each matched node is simply its own partition.
+        Orchestrates the partitioning process:
+         1. Generate partitions
+         2. Tag nodes in the partitions
+         3. Optionally, remove or alter certain meta fields that might affect passes
+         4. Return the updated ExportedProgram and a dictionary of partition tags
         """
-        partitions = []
-        # Use the config’s match_nodes:
-        matched_nodes = []
-        for cfg in self.configs:
-            matched_nodes.extend(cfg.match_nodes(ep))
+        partitions = self.generate_partitions(edge_program)
+        if partitions:
+            self.tag_nodes(partitions, edge_program)
+            # Typically we tag constant data so that subsequent steps can handle them
+            tag_constant_data(edge_program)
 
-        # Flatten and just create a partition for each single node subgraph
-        # ignoring merges or overlap logic:
-        # (In a real partitioner, you'd handle overlaps carefully.)
-        next_id = 0
-        for cluster in matched_nodes:
-            partitions.append(Partition(id=next_id, nodes=set(cluster)))
-            next_id += 1
+        # Clean up
+        del self.op_support_checker
 
-        return partitions
-
-
-# For convenience, define some specialized classes if you want:
-class SMTBasicPartitioner(SMTPartitioner):
-    def __init__(self, verbose: bool = False):
-        super().__init__(config_mode=None, verbose=verbose)
-
-
-class SMTPerOpPartitioner(SMTPartitioner):
-    def __init__(self, verbose: bool = False):
-        super().__init__(config_mode="per_op", verbose=verbose)
+        # Return a PartitionResult that holds the tagged ExportedProgram and partition tags
+        return PartitionResult(
+            tagged_exported_program=edge_program,
+            partition_tags=self.partition_tags,
+        )

@@ -14,7 +14,7 @@ class AddVisitor(NodeVisitor):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
 
         if state.regs.contains(node.args[0]):
             expr1 = state.regs.getExpr(node.args[0])
@@ -28,9 +28,6 @@ class AddVisitor(NodeVisitor):
 
         result_expr = expr1 + expr2
 
-        state.regs.add(node, result_expr, vtype="Tensor")
+        state.regs.addExpr(node, result_expr, vtype="Tensor")
 
-        if self._debug:
-            print(f"[DEBUG] aten.add.Tensor: defined {node} as {result_expr}")
-
-        return result_expr
+        print(f"[DEBUG] aten.add.Tensor: defined {node} as {result_expr}")

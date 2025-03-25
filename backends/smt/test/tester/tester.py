@@ -1,3 +1,4 @@
+import copy
 from collections import Counter, OrderedDict
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
@@ -8,6 +9,7 @@ from abc import ABC, abstractmethod
 import random
 
 from executorch.backends.smt.partition.smt_partitioner import SMTPartitioner
+from executorch.exir.backend.backend_api import validation_disabled
 
 from executorch.exir import (
     EdgeCompileConfig,

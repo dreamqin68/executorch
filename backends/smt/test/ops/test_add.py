@@ -36,7 +36,7 @@ class TestAdd(unittest.TestCase):
             SmtTester(module, inputs)
             .export()  # Exports the module via torch.export
             .check_count({"torch.ops.aten.add.Tensor": 4})
-            # .to_edge_transform_and_lower()
+            .to_edge_transform_and_lower()
             #   or any custom checks on the IR before encoding
             # .encode_smt()  # Convert to an SMT-based representation
             # .assert_no_unsupported_ops()  # Possibly a step to ensure no leftover ops
