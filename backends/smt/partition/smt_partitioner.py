@@ -33,7 +33,7 @@ class SmtOperatorSupport(OperatorSupportBase):
     def __init__(
         self,
         edge_program: torch.export.ExportedProgram,
-        compiler_specs: Optional[List[CompileSpec]] = None,
+        compiler_specs: Optional[List[CompileSpec]] = [],
         skip_node_id_set: set = None,
         skip_node_op_set: set = None,
     ):
@@ -83,7 +83,7 @@ class SmtPartitioner(Partitioner):
 
     def __init__(
         self,
-        compiler_specs: Optional[List[CompileSpec]] = None,
+        compiler_specs: Optional[List[CompileSpec]] = [],
         skip_node_id_set: set = None,
         skip_node_op_set: set = None,
     ):

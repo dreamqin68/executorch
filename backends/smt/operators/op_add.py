@@ -31,3 +31,15 @@ class AddVisitor(NodeVisitor):
         state.regs.addExpr(node, result_expr, vtype="Tensor")
 
         print(f"[DEBUG] aten.add.Tensor: defined {node} as {result_expr}")
+
+        # node.meta["smt_expr_debug"] = str(result_expr)
+
+        # print(
+        #     f"[DEBUG] AddVisitor: assigned smt_expr_debug={str(result_expr)} to node {node}"
+        # )
+
+        # print("AddVisitor node id:", id(node))
+
+        # # GLOBAL_DEBUG_MAP[node.name] = str(result_expr)
+
+        # print("After AddVisitor define_node, node.meta:", node.meta)

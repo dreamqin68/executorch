@@ -8,7 +8,7 @@ from torch.testing import FileCheck
 from abc import ABC, abstractmethod
 import random
 
-from executorch.backends.smt.partition.smt_partitioner import SMTPartitioner
+from executorch.backends.smt.partition.smt_partitioner import SmtPartitioner
 from executorch.exir.backend.backend_api import validation_disabled
 
 from executorch.exir import (
@@ -154,7 +154,7 @@ class ToEdgeTransformAndLower(Stage):
         partitioners: Optional[List[Partitioner]] = None,
         edge_compile_config: Optional[EdgeCompileConfig] = None,
     ):
-        self.partitioners = partitioners or [SMTPartitioner()]
+        self.partitioners = partitioners or [SmtPartitioner()]
         self.edge_compile_conf = edge_compile_config
         self.edge_dialect_program = None
 
@@ -178,7 +178,7 @@ class ToEdgeTransformAndLower(Stage):
 @register_stage
 class Partition(Stage):
     def __init__(self, partitioner: Optional[Partitioner] = None):
-        self.partitioner = partitioner or SMTPartitioner()
+        self.partitioner = partitioner or SmtPartitioner()
         self.delegate_module = None
 
     def run(self, artifact: EdgeProgramManager, inputs=None):
@@ -320,6 +320,10 @@ class SmtTester:
             export_stage or Export(dynamic_shapes=self.dynamic_shapes),
             self.example_inputs,
         )
+
+    def get_artifact(self, stage: Optional[str] = None):
+        stage = stage or self.cur
+        return self.stages[stage].artifact
 
     def check_count(self, input: Dict[Any, int]):
         for key, count in input.items():

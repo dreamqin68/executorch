@@ -204,6 +204,10 @@ def _partition_and_lower_one_graph_module(
             tagged_graph_module, tag, owning_program
         )
 
+        # print(f"[DEBUG] partition tag={tag}, node_list:")
+        # for n in node_list:
+        #     print("  ", n, n.meta)
+
         if len(node_list) == 0:
             logging.debug(f"Did not find any nodes for tag {tag}")
             continue
@@ -282,6 +286,17 @@ def _partition_and_lower_one_graph_module(
                 (lowered_node,) + tuple(call_delegate_args),
                 call_module_node.kwargs,
             )
+
+            # debug_infos = []
+            # for old_node in node_list:
+            #     print("Partition rewriting node id:", id(old_node))
+            #     debug_val = old_node.meta.get("smt_expr_debug", None)
+            #     print(f"[DEBUG] old_node={old_node} has smt_expr_debug={debug_val}")
+            #     if debug_val:
+            #         debug_infos.append(debug_val)
+
+            # call_delegate_node.meta["smt_expr_debug"] = "; ".join(debug_infos)
+
             call_delegate_node.meta["debug_handle"] = generate_debug_handle(
                 owning_program
             )
@@ -367,6 +382,10 @@ def _(
     # Fall back to deepcopy if no fake mode is found. TODO(T182910699): Remove this fallback.
     try:
         fake_edge_program = get_fake_program(edge_program)
+        # print("[DEBUG] Nodes in `fake_edge_program` right after creation:")
+        # for n in fake_edge_program.graph_module.graph.nodes:
+        #     print(f"  {n}, meta: {n.meta}")
+
     except Exception as e:
         logging.warning(
             f"Error in get_fake_program for graph {edge_program.graph_module}, fallback to deepcopy: {e}"
@@ -387,6 +406,11 @@ def _(
     assert (
         partitioner_result.partition_tags is not None
     ), f"Partitioner {partitioner_instance} needs a `partition_tags` field containing a mapping of tags to delegate spec"
+
+    # print("[DEBUG] Fake program nodes right before update_to_real_program:")
+    # for n in fake_edge_program.graph_module.graph.nodes:
+    #     if "smt_expr_debug" in n.meta:
+    #         print(f"  {n.name}, smt_expr_debug={n.meta['smt_expr_debug']}")
 
     update_to_real_program(tagged_exported_program, edge_program)
 

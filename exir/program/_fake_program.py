@@ -65,3 +65,18 @@ def update_to_real_program(
     """
     for k, v in real_exported_program.state_dict.items():
         fake_exported_program._state_dict[k] = v
+
+    # fake_map = {
+    #     fake_node.name: fake_node
+    #     for fake_node in fake_exported_program.graph_module.graph.nodes
+    # }
+
+    # for real_node in real_exported_program.graph_module.graph.nodes:
+    #     fake_node = fake_map.get(real_node.name, None)
+    #     if fake_node is None:
+    #         continue
+
+    # print("check if smt_expr_debug in fake_node.meta")
+    # if "smt_expr_debug" in fake_node.meta:
+    #     print("smt_expr_debug in fake_node.meta")
+    #     real_node.meta["smt_expr_debug"] = fake_node.meta["smt_expr_debug"]
