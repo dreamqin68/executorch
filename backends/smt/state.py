@@ -14,8 +14,23 @@ class SMTExpr:
     def __rand__(self, other: "SMTExpr") -> "SMTExpr":
         return self.__and__(other)
 
+    # def __add__(self, other: "SMTExpr") -> "SMTExpr":
+    #     return SMTExpr(self.expr + other.expr)
+
     def __add__(self, other: "SMTExpr") -> "SMTExpr":
-        return SMTExpr(self.expr + other.expr)
+        # If both operands are tuples, do elementwise addition.
+        if isinstance(self.expr, tuple) and isinstance(other.expr, tuple):
+            if len(self.expr) != len(other.expr):
+                raise ValueError("Cannot add tuples of different lengths")
+            # Here we add elementwise, assuming the elements are numbers (and that + is defined)
+            return SMTExpr(tuple(a + b for a, b in zip(self.expr, other.expr)))
+        elif isinstance(self.expr, tuple):
+            # If self is a tuple and other is a scalar, add scalar to each element.
+            return SMTExpr(tuple(a + other.expr for a in self.expr))
+        elif isinstance(other.expr, tuple):
+            return SMTExpr(tuple(self.expr + a for a in other.expr))
+        else:
+            return SMTExpr(self.expr + other.expr)
 
     def __sub__(self, other: "SMTExpr") -> "SMTExpr":
         return SMTExpr(self.expr - other.expr)
@@ -48,12 +63,17 @@ class SMTExpr:
 
     @staticmethod
     def mkConst(val: Any) -> "SMTExpr":
+        # If val is already a Z3 expression, wrap it directly.
+        if hasattr(val, "sexpr"):
+            return SMTExpr(val)
         if isinstance(val, int):
             return SMTExpr(z3.IntVal(val))
         elif isinstance(val, float):
             return SMTExpr(z3.RealVal(val))
         else:
-            return SMTExpr(val)
+            raise TypeError(
+                f"Cannot create SMT constant from value of type {type(val)}"
+            )
 
     @staticmethod
     def gather(weight_expr: "SMTExpr", indices_expr: "SMTExpr") -> "SMTExpr":

@@ -31,6 +31,22 @@ class NodeVisitor:
     def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
         raise NotImplementedError("NodeVisitor must be extended!")
 
+    def define_tensor(node: torch.fx.Node, state: State) -> SMTExpr:
+        # Assume that node.meta["val"] holds a constant tensor
+        val = node.meta.get("val", None)
+        if val is None:
+            raise RuntimeError(f"No constant value found for node {node}")
+        # For SMT, we might only support scalar constants, so if the tensor has one element:
+        if isinstance(val, torch.Tensor) and val.numel() == 1:
+            scalar_val = val.item()
+            return SMTExpr.mkConst(scalar_val)
+        else:
+            # For multi-element tensors, you have to decide on a representation
+            # For now, we could throw an error or flatten it to a tuple of scalars, etc.
+            raise NotImplementedError(
+                "Multi-element constant tensors are not yet supported in SMT backend"
+            )
+
 
 _node_visitor_dict: Dict[str, NodeVisitor] = {}
 

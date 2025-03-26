@@ -1,5 +1,5 @@
 import logging
-from typing import final, List, Dict
+from typing import final, List, Dict, Any, Union, Tuple
 
 import torch
 from torch.export.exported_program import ExportedProgram
@@ -15,7 +15,7 @@ from executorch.backends.smt.operators.node_visitor import (
     NodeVisitor,
 )
 
-from executorch.backends.smt.utils import is_param
+from executorch.backends.smt.utils import is_parameter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -33,11 +33,52 @@ class SMTPassManager:
         return self.ep
 
 
-def is_param_node(exported_program: ExportedProgram, node: torch.fx.Node) -> bool:
-    if node.op == "get_attr":
-        if node.target in exported_program.state_dict:
-            return True
-    return False
+# def is_param_node(exported_program: ExportedProgram, node: torch.fx.Node) -> bool:
+#     if node.op == "get_attr":
+#         if node.target in exported_program.state_dict:
+#             return True
+#     return False
+
+import z3
+
+
+def convert_to_scalar(val: Any, fallback_name: str) -> Union[int, float, z3.ExprRef]:
+    """
+    Convert val to a concrete scalar (int or float). If val is a torch.Tensor
+    and its first element is symbolic (a torch.SymFloat) so that it cannot be
+    concretely evaluated, then return a Z3 Real constant with name fallback_name.
+
+    Args:
+        val: The value to convert (often a tensor).
+        fallback_name: A string used to create a symbolic variable if needed.
+
+    Returns:
+        A scalar int, float, or a Z3 Real expression.
+    """
+    if isinstance(val, torch.Tensor):
+        if val.numel() >= 1:
+            # Try to get a concrete value from the first element.
+            try:
+                item = val.flatten()[0]
+                return float(item)  # will work if item is a concrete number
+            except Exception as e:
+                # If the conversion fails, check if it is symbolic.
+                if isinstance(val.flatten()[0], torch.SymFloat):
+                    # Instead of converting, create a Z3 symbolic constant
+                    return z3.Real(fallback_name)
+                raise ValueError(
+                    f"Could not convert tensor item {val.flatten()[0]} to float: {e}"
+                )
+        else:
+            raise ValueError(
+                f"Expected a tensor with at least one element, got shape {val.shape}"
+            )
+    elif isinstance(val, (int, float)):
+        return val
+    elif isinstance(val, torch.SymFloat):
+        return z3.Real(fallback_name)
+    else:
+        raise TypeError(f"Unsupported type for scalar conversion: {type(val)}")
 
 
 @final
@@ -58,16 +99,29 @@ class SMTBackend(BackendDetails):
 
         for node in gm.graph.nodes:
             if node.op == "placeholder":
+                # Try to get the constant from the module’s attributes or the state_dict.
                 module_attr = getattr(ep.graph_module, node.target, None)
+                if module_attr is None:
+                    module_attr = ep.state_dict.get(node.target, None)
                 if module_attr is not None:
-                    const_expr = SMTExpr.mkConst(module_attr)
+                    try:
+                        scalar_val = convert_to_scalar(module_attr, node.target)
+                    except Exception as e:
+                        raise RuntimeError(
+                            f"Error converting attribute {node.target}: {e}"
+                        )
+                    const_expr = SMTExpr.mkConst(scalar_val)
                     st.regs.addExpr(node, const_expr, vtype="Const")
                     logger.info(
                         f"SMTBackend: Created constant for attribute {node.target}: {const_expr}"
                     )
-                elif is_param_node(ep, node):
+                elif is_parameter(node, ep):
                     val = node.meta.get("val", 0)
-                    const_expr = SMTExpr.mkConst(val)
+                    try:
+                        scalar_val = convert_to_scalar(val, node.target)
+                    except Exception as e:
+                        raise RuntimeError(f"Error converting parameter {node}: {e}")
+                    const_expr = SMTExpr.mkConst(scalar_val)
                     st.regs.addExpr(node, const_expr, vtype="Param")
                     logger.info(
                         f"SMTBackend: Created constant for param {node}: {const_expr}"
