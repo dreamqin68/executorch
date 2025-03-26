@@ -59,14 +59,12 @@ class SMTBackend(BackendDetails):
 
         st = State(init_mem=None)
 
-        print("smt/smt_preprocess.py: SMTBackend was called!")
+        # print("smt/smt_preprocess.py: SMTBackend was called!")
         logger.info("SMTBackend: beginning to define placeholders, parameters, etc.")
 
-        # 2) Create numeric expressions for placeholders/params
         for node in gm.graph.nodes:
             if node.op == "placeholder":
                 if not is_param_node(ep, node):
-                    # It's a regular input
                     var_expr = SMTExpr.var(str(node.target))
                     st.regs.addExpr(node, var_expr, vtype="Input")
                     logger.info(
@@ -81,10 +79,8 @@ class SMTBackend(BackendDetails):
                         f"SMTBackend: Created constant for param {node}: {const_expr}"
                     )
 
-        # 3) Get node visitors for each operator (like aten.add.Tensor, etc.)
         visitors: Dict[str, NodeVisitor] = get_node_visitors(ep, enable_debug=True)
 
-        # 4) We'll store the final numeric expression from the "output" node
         final_expr: SMTExpr = None
 
         for node in gm.graph.nodes:
@@ -101,35 +97,50 @@ class SMTBackend(BackendDetails):
 
             elif node.op == "output":
                 if len(node.args) == 1:
-                    out_val = node.args[0]
-
-                    if isinstance(out_val, torch.fx.Node):
-                        final_expr = st.regs.getExpr(out_val)
-
-                    elif isinstance(out_val, (list, tuple)) and len(out_val) == 1:
-                        maybe_node = out_val[0]
-                        if isinstance(maybe_node, torch.fx.Node):
-                            final_expr = st.regs.getExpr(maybe_node)
-                        else:
-                            raise RuntimeError(f"Output references a non-Node: {maybe_node}")
+                    output_arg = node.args[0]
+                    if isinstance(output_arg, (list, tuple)):
+                        output_exprs = []
+                        for elem in output_arg:
+                            try:
+                                expr_elem = st.regs.getExpr(elem)
+                            except KeyError:
+                                raise RuntimeError(f"Unsupported output format: {elem}")
+                            output_exprs.append(expr_elem)
+                        combined_str = f"({', '.join(str(e) for e in output_exprs)})"
+                        final_expr = SMTExpr(combined_str)
+                        debug_map = {"final_smt_exprs": output_exprs}
                     else:
-                        raise RuntimeError(f"Unsupported output format: {out_val}")
+                        final_expr = st.regs.getExpr(output_arg)
+                        debug_map = {"final_smt_exprs": [final_expr]}
                 else:
-                    raise RuntimeError(f"Multiple outputs not handled: {node.args}")
+                    output_exprs = []
+                    for arg in node.args:
+                        if isinstance(arg, (list, tuple)):
+                            for elem in arg:
+                                try:
+                                    expr_elem = st.regs.getExpr(elem)
+                                except KeyError:
+                                    raise RuntimeError(f"Unsupported output format: {arg}")
+                                output_exprs.append(expr_elem)
+                        else:
+                            try:
+                                expr_arg = st.regs.getExpr(arg)
+                            except KeyError:
+                                raise RuntimeError(f"Unsupported output format: {arg}")
+                            output_exprs.append(expr_arg)
+                    combined_str = f"({', '.join(str(e) for e in output_exprs)})"
+                    final_expr = SMTExpr(combined_str)
+                    debug_map = {"final_smt_exprs": output_exprs}
 
-                
-            elif node.op in ["get_attr", "placeholder"]:
-                continue
-            else:
-                raise RuntimeError(f"SMTBackend: Unsupported node op: {node.op}")
 
         if final_expr is None:
             final_expr = SMTExpr.mkBool(True)  # or a numeric fallback
 
+        gm.debug_handle_map = debug_map
+        
         print("=== FINAL SMT EXPRESSION ===")
         print(final_expr)
 
-        # 6) We store the string version of final_expr in 'processed_bytes'
         processed_bytes = str(final_expr).encode("utf-8")
 
-        return PreprocessResult(processed_bytes, debug_handle_map={})
+        return PreprocessResult(processed_bytes, debug_handle_map=debug_map)

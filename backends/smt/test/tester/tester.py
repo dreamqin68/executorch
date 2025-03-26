@@ -194,6 +194,17 @@ class Partition(Stage):
     def graph_module(self) -> str:
         return self.delegate_module.exported_program().graph_module
 
+def get_smt_processed_bytes_from_edge_program_manager(manager: EdgeProgramManager) -> str:
+    ep = manager.exported_program()
+    gm = ep.graph_module
+
+    for node in gm.graph.nodes:
+        if node.op == "get_attr" and node.target.startswith("lowered_module"):
+            lowered_mod = getattr(gm, node.target)
+            if hasattr(lowered_mod, "processed_bytes"):
+                return lowered_mod.processed_bytes.decode("utf-8")
+
+    return ""
 
 class SmtTester:
 
@@ -336,6 +347,77 @@ class SmtTester:
         self, to_edge_and_transform_stage: Optional[ToEdgeTransformAndLower] = None
     ):
         return self._run_stage(to_edge_and_transform_stage or ToEdgeTransformAndLower())
+    
+    def check_smt_expression(self, expected_substring: str):
+        """
+        Checks that the final SMT expression (as returned by the SMTBackend)
+        contains 'expected_substring'. Raises AssertionError if not found.
+        """
+        # 1) Ensure we actually have gone through partitioning (to_edge_transform_and_lower)
+        #    or some final step that triggers 'SMTBackend.preprocess(...)'.
+        if not self.cur:
+            raise RuntimeError("No stages have been run yet. Did you call .export() or .to_edge_transform_and_lower()?")
+
+        # 2) The final stage artifact is typically an EdgeProgramManager
+        final_artifact = self.stages[self.cur].artifact
+        if not hasattr(final_artifact, "exported_program"):
+            raise RuntimeError("The final artifact is not an EdgeProgramManager. Can't retrieve SMT expression.")
+
+        # 3) Extract the processed_bytes as a string
+        smt_expr_str = get_smt_processed_bytes_from_edge_program_manager(final_artifact)
+        if not smt_expr_str:
+            raise RuntimeError("No SMT expression found in the final lowered module.")
+
+        # 4) Check if 'expected_substring' is in 'smt_expr_str'
+        if expected_substring not in smt_expr_str:
+            raise AssertionError(
+                f"Expected substring '{expected_substring}' not found in final SMT expression:\n{smt_expr_str}"
+            )
+
+        print(f"[TESTER] Found expected '{expected_substring}' in final SMT expression.")
+        return self
+    
+    # def get_final_debug_map(self):
+    #     final_artifact = self.stages[self.cur].artifact
+    #     ep = final_artifact.exported_program()
+    #     gm = ep.graph_module
+    #     for node in gm.graph.nodes:
+    #         if node.op == "get_attr" and node.target.startswith("lowered_module"):
+    #             lowered_mod = getattr(gm, node.target)
+    #             if hasattr(lowered_mod, "debug_handle_map"):
+    #                 return lowered_mod.debug_handle_map
+    #     return {}
+    
+    def get_final_debug_map(self):
+        """
+        Retrieve the debug_handle_map from the final lowered ExportedProgram.
+        We first try to use the artifact from the Partition stage (if run),
+        then fallback to the ToEdgeTransformAndLower stage.
+        """
+        stage_key = None
+        if self.stages.get("Partition") is not None:
+            stage_key = "Partition"
+        elif self.stages.get("ToEdgeTransformAndLower") is not None:
+            stage_key = "ToEdgeTransformAndLower"
+        else:
+            raise RuntimeError("No suitable stage found to retrieve the debug map.")
+        
+        artifact = self.stages[stage_key].artifact
+        ep = artifact.exported_program()
+        gm = ep.graph_module
+
+        # Try if the GraphModule has the debug_handle_map attribute
+        if hasattr(gm, "debug_handle_map") and gm.debug_handle_map:
+            return gm.debug_handle_map
+
+        # Fallback: search for a lowered module attached via a get_attr node
+        for node in gm.graph.nodes:
+            if node.op == "get_attr" and node.target.startswith("lowered_module"):
+                lowered_mod = getattr(gm, node.target)
+                if hasattr(lowered_mod, "debug_handle_map") and lowered_mod.debug_handle_map:
+                    return lowered_mod.debug_handle_map
+
+        return {}
 
     def encode_smt(self):
         if "export" not in self.artifacts:

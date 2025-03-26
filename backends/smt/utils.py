@@ -18,3 +18,12 @@ def is_parameter(
         or is_buffer(edge_program, node)
         or is_lifted_tensor_constant(edge_program, node)
     )
+
+
+from z3 import Solver, Not, unsat
+
+def are_expressions_equivalent(expr1, expr2):
+    equality = expr1.z3_expr == expr2.z3_expr
+    s = Solver()
+    s.add(Not(equality))
+    return s.check() == unsat
