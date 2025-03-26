@@ -182,7 +182,6 @@ class Model:
         self.z3_model = z3_model
 
     def eval(self, expr: Expr, model_completion: bool = False) -> Expr:
-        """Evaluates `expr` in this model, returning a new Expr (constant)."""
         val = self.z3_model.eval(expr.z3_expr, model_completion)
         return Expr(val)
 
@@ -193,7 +192,7 @@ class Model:
 class CheckResult:
 
     def __init__(self, z3_result):
-        self.z3_result = z3_result  # typically z3 sat, unsat, or unknown
+        self.z3_result = z3_result
 
     def hasSat(self) -> bool:
         return self.z3_result == z3.sat

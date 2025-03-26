@@ -53,7 +53,6 @@ class SMTExpr:
         elif isinstance(val, float):
             return SMTExpr(z3.RealVal(val))
         else:
-            # For other types (like array expressions), assume it's already z3.
             return SMTExpr(val)
 
     @staticmethod

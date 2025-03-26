@@ -15,6 +15,8 @@ from executorch.backends.smt.operators.node_visitor import (
     NodeVisitor,
 )
 
+from executorch.backends.smt.utils import is_param
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -40,19 +42,11 @@ def is_param_node(exported_program: ExportedProgram, node: torch.fx.Node) -> boo
 
 @final
 class SMTBackend(BackendDetails):
-    """
-    An SMT backend that:
-     - Converts placeholders/params into numeric Z3 expressions
-     - Invokes node visitors to define numeric expressions (e.g., x + y)
-     - Extracts the final output's numeric expression for debugging/inspection
-    """
-
     @staticmethod
     def preprocess(
         edge_program: ExportedProgram, compile_specs: List[CompileSpec]
     ) -> PreprocessResult:
 
-        # 1) Optional transform passes (none by default)
         pass_manager = SMTPassManager(edge_program, passes=[])
         ep = pass_manager.transform()
         gm = ep.graph_module
@@ -64,19 +58,25 @@ class SMTBackend(BackendDetails):
 
         for node in gm.graph.nodes:
             if node.op == "placeholder":
-                if not is_param_node(ep, node):
-                    var_expr = SMTExpr.var(str(node.target))
-                    st.regs.addExpr(node, var_expr, vtype="Input")
+                module_attr = getattr(ep.graph_module, node.target, None)
+                if module_attr is not None:
+                    const_expr = SMTExpr.mkConst(module_attr)
+                    st.regs.addExpr(node, const_expr, vtype="Const")
                     logger.info(
-                        f"SMTBackend: Created fresh var for input {node}: {var_expr}"
+                        f"SMTBackend: Created constant for attribute {node.target}: {const_expr}"
                     )
-                else:
-                    # It's a parameter (from state_dict)
-                    val = node.meta["val"] if "val" in node.meta else 0
+                elif is_param_node(ep, node):
+                    val = node.meta.get("val", 0)
                     const_expr = SMTExpr.mkConst(val)
                     st.regs.addExpr(node, const_expr, vtype="Param")
                     logger.info(
                         f"SMTBackend: Created constant for param {node}: {const_expr}"
+                    )
+                else:
+                    var_expr = SMTExpr.var(str(node.target))
+                    st.regs.addExpr(node, var_expr, vtype="Input")
+                    logger.info(
+                        f"SMTBackend: Created fresh var for input {node.target}: {var_expr}"
                     )
 
         visitors: Dict[str, NodeVisitor] = get_node_visitors(ep, enable_debug=True)
@@ -120,7 +120,9 @@ class SMTBackend(BackendDetails):
                                 try:
                                     expr_elem = st.regs.getExpr(elem)
                                 except KeyError:
-                                    raise RuntimeError(f"Unsupported output format: {arg}")
+                                    raise RuntimeError(
+                                        f"Unsupported output format: {arg}"
+                                    )
                                 output_exprs.append(expr_elem)
                         else:
                             try:
@@ -132,12 +134,11 @@ class SMTBackend(BackendDetails):
                     final_expr = SMTExpr(combined_str)
                     debug_map = {"final_smt_exprs": output_exprs}
 
-
         if final_expr is None:
-            final_expr = SMTExpr.mkBool(True)  # or a numeric fallback
+            final_expr = SMTExpr.mkBool(True)
 
         gm.debug_handle_map = debug_map
-        
+
         print("=== FINAL SMT EXPRESSION ===")
         print(final_expr)
 
