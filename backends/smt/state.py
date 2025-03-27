@@ -57,9 +57,13 @@ class SMTExpr:
         """Wraps a python bool in a z3.BoolVal."""
         return SMTExpr(z3.BoolVal(val))
 
+    # @staticmethod
+    # def var(name: str, bitwidth: int = 32) -> "SMTExpr":
+    #     return SMTExpr(z3.BitVec(name, bitwidth))
+
     @staticmethod
-    def var(name: str, bitwidth: int = 32) -> "SMTExpr":
-        return SMTExpr(z3.BitVec(name, bitwidth))
+    def var(name: str) -> "SMTExpr":
+        return SMTExpr(z3.Real(name))
 
     @staticmethod
     def mkConst(val: Any) -> "SMTExpr":

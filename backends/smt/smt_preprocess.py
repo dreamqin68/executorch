@@ -1,4 +1,5 @@
 import logging
+import z3
 from typing import final, List, Dict, Any, Union, Tuple
 
 import torch
@@ -33,52 +34,46 @@ class SMTPassManager:
         return self.ep
 
 
-# def is_param_node(exported_program: ExportedProgram, node: torch.fx.Node) -> bool:
-#     if node.op == "get_attr":
-#         if node.target in exported_program.state_dict:
-#             return True
-#     return False
-
-import z3
-
-
 def convert_to_scalar(val: Any, fallback_name: str) -> Union[int, float, z3.ExprRef]:
     """
-    Convert val to a concrete scalar (int or float). If val is a torch.Tensor
-    and its first element is symbolic (a torch.SymFloat) so that it cannot be
-    concretely evaluated, then return a Z3 Real constant with name fallback_name.
+    Convert a value to a concrete scalar if possible.
+
+    If val is a torch.Tensor with at least one element, try to convert its first element to float.
+    If that fails because the value is data-dependent (e.g. a torch.SymFloat that cannot be guarded),
+    then log a simplified message and return a symbolic constant (a Z3 Real) using fallback_name.
 
     Args:
-        val: The value to convert (often a tensor).
-        fallback_name: A string used to create a symbolic variable if needed.
+        val: The value to convert.
+        fallback_name: A string used to create a symbolic constant if needed.
 
     Returns:
-        A scalar int, float, or a Z3 Real expression.
+        A scalar (int or float) or a Z3 Real expression.
     """
-    if isinstance(val, torch.Tensor):
-        if val.numel() >= 1:
-            # Try to get a concrete value from the first element.
-            try:
+    try:
+        if isinstance(val, torch.Tensor):
+            if val.numel() >= 1:
                 item = val.flatten()[0]
-                return float(item)  # will work if item is a concrete number
-            except Exception as e:
-                # If the conversion fails, check if it is symbolic.
-                if isinstance(val.flatten()[0], torch.SymFloat):
-                    # Instead of converting, create a Z3 symbolic constant
-                    return z3.Real(fallback_name)
+                # Try to convert to a concrete float.
+                return float(item)
+            else:
                 raise ValueError(
-                    f"Could not convert tensor item {val.flatten()[0]} to float: {e}"
+                    f"Expected tensor with >=1 element, got shape {val.shape}"
                 )
+        elif isinstance(val, (int, float)):
+            return val
+        elif isinstance(val, torch.SymFloat):
+            return z3.Real(fallback_name)
         else:
-            raise ValueError(
-                f"Expected a tensor with at least one element, got shape {val.shape}"
+            raise TypeError(f"Unsupported type for scalar conversion: {type(val)}")
+    except Exception as e:
+        err_str = str(e)
+        if "Could not guard on data-dependent expression" in err_str:
+            logger.info(
+                f"Could not convert tensor item to float due to data-dependence. Using symbolic constant '{fallback_name}' instead."
             )
-    elif isinstance(val, (int, float)):
-        return val
-    elif isinstance(val, torch.SymFloat):
-        return z3.Real(fallback_name)
-    else:
-        raise TypeError(f"Unsupported type for scalar conversion: {type(val)}")
+            return z3.Real(fallback_name)
+        else:
+            raise ValueError(f"Could not convert tensor item {val} to float: {e}")
 
 
 @final
@@ -99,8 +94,14 @@ class SMTBackend(BackendDetails):
 
         for node in gm.graph.nodes:
             if node.op == "placeholder":
-                # Try to get the constant from the module’s attributes or the state_dict.
-                module_attr = getattr(ep.graph_module, node.target, None)
+                # First, try to fetch the attribute from the original module (ep.root) if available.
+                module_attr = None
+                if hasattr(ep, "root"):
+                    module_attr = getattr(ep.root, node.target, None)
+                # If not found there, try the graph module.
+                if module_attr is None:
+                    module_attr = getattr(ep.graph_module, node.target, None)
+                # Finally, fall back to the state dict.
                 if module_attr is None:
                     module_attr = ep.state_dict.get(node.target, None)
                 if module_attr is not None:

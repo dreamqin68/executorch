@@ -21,4 +21,19 @@ to_be_implemented_operator = [
 
 allow_list_operator = [
     exir_ops.edge.aten.add.Tensor,
+    exir_ops.edge.aten.sub.Tensor,
+    exir_ops.edge.aten.permute_copy.default,
+    exir_ops.edge.aten.view_copy.default,
+    exir_ops.edge.aten.mm.default,
+    exir_ops.edge.aten.slice_copy.Tensor,
+    exir_ops.edge.aten.mul.Tensor,
+    exir_ops.edge.aten.cat.default,
+    exir_ops.edge.aten.index_put.default,
+    exir_ops.edge.aten.clone.default,
+    exir_ops.edge.aten.unsqueeze_copy.default,
+    exir_ops.edge.aten.expand_copy.default,
+    exir_ops.edge.aten.bmm.default,
+    exir_ops.edge.aten.div.Tensor,
+    exir_ops.edge.dim_order_ops._to_dim_order_copy.default,
+    exir_ops.edge.aten._softmax.default,
 ]

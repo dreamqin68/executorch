@@ -1,6 +1,5 @@
-from typing import Dict
 import torch
-from executorch.backends.smt.state import State, SMTExpr
+from executorch.backends.smt.state import State
 from executorch.backends.smt.operators.node_visitor import (
     NodeVisitor,
     register_node_visitor,

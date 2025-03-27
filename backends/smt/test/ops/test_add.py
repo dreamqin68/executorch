@@ -52,42 +52,42 @@ class TestAdd(unittest.TestCase):
         if expected_smt_expr is not None:
             tester.check_smt_expression(expected_smt_expr)
 
-    # def test_fp16_add(self):
-    #     inputs = (torch.randn(1).to(torch.float16), torch.randn(1).to(torch.float16))
-    #     self._test_add(
-    #         inputs,
-    #         self.AddModule(),
-    #         check_count_dict={"torch.ops.aten.add.Tensor": 4},
-    #         expected_smt_expr="x + y + x + x + x + y + x + x",
-    #     )
-
-    # def test_fp32_add(self):
-    #     inputs = (torch.randn(1), torch.randn(1))
-    #     self._test_add(
-    #         inputs,
-    #         self.AddModule(),
-    #         check_count_dict={"torch.ops.aten.add.Tensor": 4},
-    #         expected_smt_expr="x + y + x + x + x + y + x + x",
-    #     )
-
-    def test_fp32_add_constant(self):
-        inputs = (torch.randn(4, 4, 4),)
-        module = self.AddConstant(torch.randn(4, 4, 4))
+    def test_fp16_add(self):
+        inputs = (torch.randn(1).to(torch.float16), torch.randn(1).to(torch.float16))
         self._test_add(
             inputs,
-            module,
-            check_count_dict={"aten.add.Tensor": 4},
-            expected_smt_expr=None,
+            self.AddModule(),
+            check_count_dict={"torch.ops.aten.add.Tensor": 4},
+            expected_smt_expr="x + y + x + x + x + y + x + x",
         )
 
-    # def test_add_module2(self):
-    #     inputs = (torch.randn(2, 2),)
+    def test_fp32_add(self):
+        inputs = (torch.randn(1), torch.randn(1))
+        self._test_add(
+            inputs,
+            self.AddModule(),
+            check_count_dict={"torch.ops.aten.add.Tensor": 4},
+            expected_smt_expr="x + y + x + x + x + y + x + x",
+        )
+
+    # def test_fp32_add_constant(self):
+    #     inputs = (torch.randn(4, 4, 4),)
+    #     module = self.AddConstant(torch.randn(4, 4, 4))
     #     self._test_add(
     #         inputs,
-    #         self.AddModule2(),
-    #         check_count_dict={"torch.ops.aten.add.Tensor": 1},
-    #         expected_smt_expr="x + x",
+    #         module,
+    #         check_count_dict={"aten.add.Tensor": 4},
+    #         expected_smt_expr=None,
     #     )
+
+    def test_add_module2(self):
+        inputs = (torch.randn(2, 2),)
+        self._test_add(
+            inputs,
+            self.AddModule2(),
+            check_count_dict={"torch.ops.aten.add.Tensor": 1},
+            expected_smt_expr="x + x",
+        )
 
 
 if __name__ == "__main__":
