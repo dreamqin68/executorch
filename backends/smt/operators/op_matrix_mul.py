@@ -1,5 +1,4 @@
 import torch
-from typing import Dict
 
 from executorch.backends.smt.state import State, SMTExpr
 from executorch.backends.smt.operators.node_visitor import (
@@ -19,7 +18,7 @@ class MatrixMultiplyVisitor(NodeVisitor):
         self,
         node: torch.fx.Node,
         state: State,
-    ) -> SMTExpr:
+    ):
 
         a_node = node.args[0]
         b_node = node.args[1]
@@ -30,9 +29,6 @@ class MatrixMultiplyVisitor(NodeVisitor):
 
         state.regs.addExpr(node, mm_expr, "Tensor")
 
-        if self._debug:
-            print(
-                f"[DEBUG] mm => node {node}, a_expr={a_expr}, b_expr={b_expr} => {mm_expr}"
-            )
-
-        return mm_expr
+        print(
+            f"[DEBUG] mm => node {node}, a_expr={a_expr}, b_expr={b_expr} => {mm_expr}"
+        )

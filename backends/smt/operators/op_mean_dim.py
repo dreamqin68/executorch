@@ -1,5 +1,4 @@
 import torch
-from typing import Dict, List, cast
 from executorch.backends.smt.state import State, SMTExpr
 from executorch.backends.smt.operators.node_visitor import (
     NodeVisitor,
@@ -15,7 +14,7 @@ class MeanDimVisitor(NodeVisitor):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
         input_node = node.args[0]
         input_expr = self.define_tensor(input_node, state)
 
@@ -39,4 +38,3 @@ class MeanDimVisitor(NodeVisitor):
         gap_expr = SMTExpr.global_avg_pool_2d(input_expr, shape_4d)
 
         state.regs.addExpr(node, gap_expr, "Tensor")
-        return gap_expr

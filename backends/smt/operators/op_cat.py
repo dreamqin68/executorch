@@ -17,7 +17,7 @@ class CatVisitor(NodeVisitor):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
         list_of_tensors: List[torch.fx.Node] = cast(List[torch.fx.Node], node.args[0])
         num_tensors = len(list_of_tensors)
         if num_tensors < 2 or num_tensors > 4:
@@ -37,9 +37,7 @@ class CatVisitor(NodeVisitor):
         cat_expr = SMTExpr.concat(in_exprs, axis)
 
         state.regs.addExpr(node, cat_expr, vtype="Tensor")
-        if self._debug:
-            print(
-                f"[DEBUG] cat => node {node}, axis={axis}, #inputs={num_tensors} => {cat_expr}"
-            )
 
-        return cat_expr
+        print(
+            f"[DEBUG] cat => node {node}, axis={axis}, #inputs={num_tensors} => {cat_expr}"
+        )

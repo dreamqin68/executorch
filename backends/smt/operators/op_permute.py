@@ -18,7 +18,7 @@ class PermuteVisitor(NodeVisitor):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
         input_node = node.args[0]
         in_expr = self.define_tensor(input_node, state)
 
@@ -40,9 +40,4 @@ class PermuteVisitor(NodeVisitor):
 
         state.regs.addExpr(node, perm_expr, "Tensor")
 
-        if self._debug:
-            print(
-                f"[DEBUG] permute => node {node}, perm={permute_order} => {perm_expr}"
-            )
-
-        return perm_expr
+        print(f"[DEBUG] permute => node {node}, perm={permute_order} => {perm_expr}")

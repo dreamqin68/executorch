@@ -19,7 +19,7 @@ class SliceCopyVisitor(NodeVisitor):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
         input_node = node.args[0]
         in_expr = self.define_tensor(input_node, state)
 
@@ -62,8 +62,6 @@ class SliceCopyVisitor(NodeVisitor):
 
         state.regs.addExpr(node, sliced_expr, "Tensor")
 
-        if self._debug:
-            print(
-                f"[DEBUG] slice_copy => slicing node {input_node}, shape={shape}, dim={dim_of_slice}, start={slice_begin_index}, size={size_val}, stride=1 => {sliced_expr}"
-            )
-        return sliced_expr
+        print(
+            f"[DEBUG] slice_copy => slicing node {input_node}, shape={shape}, dim={dim_of_slice}, start={slice_begin_index}, size={size_val}, stride=1 => {sliced_expr}"
+        )

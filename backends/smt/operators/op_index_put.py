@@ -1,5 +1,4 @@
 import torch
-from typing import Dict, List
 
 from executorch.backends.smt.state import State, SMTExpr
 from executorch.backends.smt.operators.node_visitor import (
@@ -10,7 +9,7 @@ from executorch.backends.smt.operators.node_visitor import (
 
 @register_node_visitor
 class IndexPutVisitor(NodeVisitor):
-    target = ["aten.index_put.default"]
+    target = "aten.index_put.default"
 
     def __init__(self, *args) -> None:
         super().__init__(*args)
@@ -19,7 +18,7 @@ class IndexPutVisitor(NodeVisitor):
         self,
         node: torch.fx.Node,
         state: State,
-    ) -> SMTExpr:
+    ):
 
         input_node = node.args[0]
         base_expr = self.define_tensor(input_node, state)
@@ -54,9 +53,6 @@ class IndexPutVisitor(NodeVisitor):
 
         state.regs.addExpr(node, scatter_expr, "Tensor")
 
-        if self._debug:
-            print(
-                f"[DEBUG] index_put => node {node}, base_expr={base_expr}, merged_indices={merged_indices_expr}, value_expr={value_expr} => {scatter_expr}"
-            )
-
-        return scatter_expr
+        print(
+            f"[DEBUG] index_put => node {node}, base_expr={base_expr}, merged_indices={merged_indices_expr}, value_expr={value_expr} => {scatter_expr}"
+        )

@@ -1,5 +1,4 @@
 import torch
-from typing import Dict
 
 from executorch.backends.smt.state import State, SMTExpr
 from executorch.backends.smt.operators.node_visitor import (
@@ -15,7 +14,7 @@ class SoftmaxVisitor(NodeVisitor):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
         softmax_dim = int(node.args[1])
 
         input_node = node.args[0]
@@ -35,9 +34,4 @@ class SoftmaxVisitor(NodeVisitor):
 
         state.regs.addExpr(node, sm_expr, vtype="Tensor")
 
-        if self._debug:
-            print(
-                f"[DEBUG] softmax => node {node}, dim={softmax_dim}, result={sm_expr}"
-            )
-
-        return sm_expr
+        print(f"[DEBUG] softmax => node {node}, dim={softmax_dim}, result={sm_expr}")

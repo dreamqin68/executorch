@@ -49,7 +49,24 @@ class TestSub(unittest.TestCase):
             check_count_dict={"torch.ops.aten.sub.Tensor": 1},
             expected_smt_expr="x - y",
         )
-        self._test_sub(inputs)
+
+    def test_fp32_sub(self):
+        inputs = (torch.randn((1, 3)), torch.randn((4, 3)))
+        self._test_sub(
+            inputs,
+            self.Sub(),
+            check_count_dict={"torch.ops.aten.sub.Tensor": 1},
+            expected_smt_expr="x - y",
+        )
+
+    def test_fp32_sub2(self):
+        inputs = (torch.randn(1, 1, 4, 4),)
+        self._test_sub(
+            inputs,
+            self.Sub2(),
+            check_count_dict={"torch.ops.aten.sub.Tensor": 1},
+            expected_smt_expr="x - x",
+        )
 
 
 if __name__ == "__main__":

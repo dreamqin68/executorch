@@ -15,7 +15,7 @@ class ToDimOrderCopyVisitor(NodeVisitor):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
         input_node = node.args[0]
         input_expr = self.define_tensor(input_node, state)
 
@@ -23,9 +23,6 @@ class ToDimOrderCopyVisitor(NodeVisitor):
 
         state.regs.addExpr(node, dim_expr, "Tensor")
 
-        if self._debug:
-            print(
-                f"[DEBUG] dim_order_copy => node {node}, input={input_expr} => {dim_expr}"
-            )
-
-        return dim_expr
+        print(
+            f"[DEBUG] dim_order_copy => node {node}, input={input_expr} => {dim_expr}"
+        )

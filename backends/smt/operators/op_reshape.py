@@ -1,5 +1,4 @@
 import torch
-from typing import Dict, cast
 
 from executorch.backends.smt.state import State, SMTExpr
 from executorch.backends.smt.operators.node_visitor import (
@@ -10,7 +9,7 @@ from executorch.backends.smt.operators.node_visitor import (
 
 @register_node_visitor
 class Reshape(NodeVisitor):
-    target = ["aten.view_copy.default"]
+    target = "aten.view_copy.default"
 
     def __init__(self, *args) -> None:
         super().__init__(*args)
@@ -19,7 +18,7 @@ class Reshape(NodeVisitor):
         self,
         node: torch.fx.Node,
         state: State,
-    ) -> SMTExpr:
+    ):
 
         input_node = node.args[0]
         input_expr = self.define_tensor(input_node, state)
@@ -40,9 +39,7 @@ class Reshape(NodeVisitor):
         reshape_expr = SMTExpr.reshape(input_expr, old_shape, new_shape)
 
         state.regs.addExpr(node, reshape_expr, "Tensor")
-        if self._debug:
-            print(
-                f"[DEBUG] reshape => node {node}, old_shape={old_shape}, new_shape={new_shape} => {reshape_expr}"
-            )
 
-        return reshape_expr
+        print(
+            f"[DEBUG] reshape => node {node}, old_shape={old_shape}, new_shape={new_shape} => {reshape_expr}"
+        )

@@ -18,14 +18,11 @@ class SMTExpr:
     #     return SMTExpr(self.expr + other.expr)
 
     def __add__(self, other: "SMTExpr") -> "SMTExpr":
-        # If both operands are tuples, do elementwise addition.
         if isinstance(self.expr, tuple) and isinstance(other.expr, tuple):
             if len(self.expr) != len(other.expr):
                 raise ValueError("Cannot add tuples of different lengths")
-            # Here we add elementwise, assuming the elements are numbers (and that + is defined)
             return SMTExpr(tuple(a + b for a, b in zip(self.expr, other.expr)))
         elif isinstance(self.expr, tuple):
-            # If self is a tuple and other is a scalar, add scalar to each element.
             return SMTExpr(tuple(a + other.expr for a in self.expr))
         elif isinstance(other.expr, tuple):
             return SMTExpr(tuple(self.expr + a for a in other.expr))
@@ -46,7 +43,6 @@ class SMTExpr:
         return SMTExpr(self.expr == other.expr)
 
     def __ne__(self, other: "SMTExpr") -> "SMTExpr":
-        # Returns an SMT expression representing inequality.
         return SMTExpr(self.expr != other.expr)
 
     def __repr__(self):

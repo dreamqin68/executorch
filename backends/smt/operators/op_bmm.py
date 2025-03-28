@@ -1,5 +1,4 @@
 import torch
-from typing import Dict
 
 from executorch.backends.smt.state import State, SMTExpr
 from executorch.backends.smt.operators.node_visitor import (
@@ -15,7 +14,7 @@ class BMMVisitor(NodeVisitor):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
         a_node = node.args[0]
         b_node = node.args[1]
         a_expr = self.define_tensor(a_node, state)
@@ -25,9 +24,6 @@ class BMMVisitor(NodeVisitor):
 
         state.regs.addExpr(node, bmm_expr, "Tensor")
 
-        if self._debug:
-            print(
-                f"[DEBUG] bmm => node {node}, a_expr={a_expr}, b_expr={b_expr} => {bmm_expr}"
-            )
-
-        return bmm_expr
+        print(
+            f"[DEBUG] bmm => node {node}, a_expr={a_expr}, b_expr={b_expr} => {bmm_expr}"
+        )

@@ -1,4 +1,3 @@
-from typing import Dict
 import torch
 from executorch.backends.smt.state import State, SMTExpr
 from executorch.backends.smt.operators.node_visitor import (
@@ -14,7 +13,7 @@ class LinearVisitor(NodeVisitor):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
 
         if state.regs.contains(node.args[0]):
             x_expr = state.regs.getExpr(node.args[0])
@@ -42,4 +41,3 @@ class LinearVisitor(NodeVisitor):
         linear_expr = (x_expr * wT_expr) + b_expr
 
         state.regs.add(node, linear_expr, vtype="Tensor")
-        return linear_expr

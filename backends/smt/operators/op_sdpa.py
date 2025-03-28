@@ -1,5 +1,4 @@
 import torch
-from typing import Dict, cast
 from executorch.backends.smt.state import State, SMTExpr
 from executorch.backends.smt.operators.node_visitor import (
     NodeVisitor,
@@ -14,7 +13,7 @@ class SDPAVisitor(NodeVisitor):
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
         q_expr = self.define_tensor(node.args[0], state)
         k_expr = self.define_tensor(node.args[1], state)
         v_expr = self.define_tensor(node.args[2], state)
@@ -35,10 +34,8 @@ class SDPAVisitor(NodeVisitor):
 
         state.regs.addExpr(node, sdpa_expr, "Tensor")
 
-        if self._debug:
-            print(f"[DEBUG] scaled_dot_product_attention => node {node}")
-            print(
-                f"         Q: {q_expr}, K: {k_expr}, V: {v_expr}, mask: {mask_expr}, scale: {scale_expr}"
-            )
-            print(f"         => {sdpa_expr}")
-        return sdpa_expr
+        print(f"[DEBUG] scaled_dot_product_attention => node {node}")
+        print(
+            f"         Q: {q_expr}, K: {k_expr}, V: {v_expr}, mask: {mask_expr}, scale: {scale_expr}"
+        )
+        print(f"         => {sdpa_expr}")

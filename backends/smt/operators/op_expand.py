@@ -1,5 +1,4 @@
 import warnings
-from typing import cast, Dict, List
 import torch
 
 from executorch.backends.smt.state import State, SMTExpr
@@ -11,12 +10,12 @@ from executorch.backends.smt.operators.node_visitor import (
 
 @register_node_visitor
 class Expand(NodeVisitor):
-    target = ["aten.expand_copy.default"]
+    target = "aten.expand_copy.default"
 
     def __init__(self, *args) -> None:
         super().__init__(*args)
 
-    def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_node(self, node: torch.fx.Node, state: State):
 
         input_node = node.args[0]
         input_expr = self.define_tensor(input_node, state)
@@ -41,9 +40,6 @@ class Expand(NodeVisitor):
 
         state.regs.addExpr(node, expand_expr, vtype="Tensor")
 
-        if self._debug:
-            print(
-                f"[DEBUG] expand => node {node}, old_shape={old_shape}, new_sizes={new_sizes}, expand_expr={expand_expr}"
-            )
-
-        return expand_expr
+        print(
+            f"[DEBUG] expand => node {node}, old_shape={old_shape}, new_sizes={new_sizes}, expand_expr={expand_expr}"
+        )

@@ -1,5 +1,4 @@
 import torch
-from typing import Dict
 from executorch.backends.smt.state import State, SMTExpr
 from executorch.backends.smt.operators.node_visitor import (
     NodeVisitor,
@@ -9,7 +8,7 @@ from executorch.backends.smt.operators.node_visitor import (
 
 @register_node_visitor
 class Unsqueeze(NodeVisitor):
-    target = ["aten.unsqueeze_copy.default"]
+    target = "aten.unsqueeze_copy.default"
 
     def __init__(self, *args) -> None:
         super().__init__(*args)
@@ -29,9 +28,6 @@ class Unsqueeze(NodeVisitor):
         # store
         state.regs.addExpr(node, unsq_expr, "Tensor")
 
-        if self._debug:
-            print(
-                f"[DEBUG] unsqueeze => node {node}, input={input_expr}, dim={dim} => {unsq_expr}"
-            )
-
-        return unsq_expr
+        print(
+            f"[DEBUG] unsqueeze => node {node}, input={input_expr}, dim={dim} => {unsq_expr}"
+        )
