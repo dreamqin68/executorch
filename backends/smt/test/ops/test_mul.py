@@ -51,7 +51,34 @@ class TestMul(unittest.TestCase):
             inputs,
             self.Mul(),
             check_count_dict={"torch.ops.aten.mul.Tensor": 1},
-            expected_smt_expr="x * y",
+            expected_smt_expr="x*y",
+        )
+
+    def test_fp32_mul(self):
+        inputs = (torch.randn((1, 3)), torch.randn((4, 3)))
+        self._test_mul(
+            inputs,
+            self.Mul(),
+            check_count_dict={"torch.ops.aten.mul.Tensor": 1},
+            expected_smt_expr="x*y",
+        )
+
+    def test_qs8_mul2(self):
+        inputs = (torch.randn(1, 1, 4, 4),)
+        self._test_mul(
+            inputs,
+            self.Mul2(),
+            check_count_dict={"torch.ops.aten.mul.Tensor": 1},
+            expected_smt_expr="x*x",
+        )
+
+    def test_qs8_mul_functional(self):
+        inputs = (torch.randn(1, 1, 4, 4), torch.randn(1, 1, 4, 4))
+        self._test_mul(
+            inputs,
+            self.MulFunctional(),
+            check_count_dict={"torch.ops.aten.mul.Tensor": 3},
+            expected_smt_expr="x*y*x*y",
         )
 
 

@@ -6,10 +6,10 @@ from executorch.backends.smt.operators.node_visitor import (
     register_node_visitor,
 )
 
-# If you need dimension reorder constants:
 PERM_NHWC_TO_NCHW = [0, 3, 1, 2]
 
 
+#  concatenation
 @register_node_visitor
 class CatVisitor(NodeVisitor):
     target = "aten.cat.default"
@@ -27,7 +27,11 @@ class CatVisitor(NodeVisitor):
 
         in_exprs: List[SMTExpr] = []
         for tnode in list_of_tensors:
-            expr = self.define_tensor(tnode, state)
+            if state.regs.contains(tnode):
+                expr = state.regs.getExpr(tnode)
+            else:
+                expr = self.define_tensor(tnode, state)
+
             in_exprs.append(expr)
 
         axis = 0

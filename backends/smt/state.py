@@ -63,7 +63,6 @@ class SMTExpr:
 
     @staticmethod
     def mkConst(val: Any) -> "SMTExpr":
-        # If val is already a Z3 expression, wrap it directly.
         if hasattr(val, "sexpr"):
             return SMTExpr(val)
         if isinstance(val, int):
@@ -94,8 +93,9 @@ class SMTExpr:
 
     @staticmethod
     def global_avg_pool_2d(input_expr: "SMTExpr", shape_4d: tuple) -> "SMTExpr":
-        gap_fn = z3.Function("gap_placeholder", z3.IntSort(), z3.RealSort())
-        return SMTExpr(gap_fn)
+        gap_fn = z3.Function("gap", z3.IntSort(), z3.RealSort())
+        expr = gap_fn(input_expr)
+        return SMTExpr(expr)
 
     @staticmethod
     def slice(
@@ -106,8 +106,7 @@ class SMTExpr:
         size: int,
         stride: int = 1,
     ) -> "SMTExpr":
-
-        slice_fn = z3.Function("slice_placeholder", z3.IntSort(), z3.RealSort())
+        slice_fn = z3.Function("slice", z3.IntSort(), z3.RealSort())
         return SMTExpr(slice_fn)
 
     @staticmethod
@@ -118,27 +117,29 @@ class SMTExpr:
         mask_expr: "SMTExpr",
         scale_expr: "SMTExpr",
     ) -> "SMTExpr":
-
-        sdpa_fn = z3.Function("sdpa_placeholder", z3.IntSort(), z3.RealSort())
+        sdpa_fn = z3.Function("sdpa", z3.IntSort(), z3.RealSort())
         return SMTExpr(sdpa_fn)
 
     @staticmethod
     def select_dim(
         input_expr: "SMTExpr", shape: list[int], dim: int, index: int
     ) -> "SMTExpr":
-
-        select_fn = z3.Function("select_dim_placeholder", z3.IntSort(), z3.RealSort())
+        select_fn = z3.Function("select_dim", z3.IntSort(), z3.RealSort())
         return SMTExpr(select_fn)
 
     @staticmethod
     def concat(inputs: List["SMTExpr"], axis: int) -> "SMTExpr":
-        fun_name = f"concat_placeholder_axis_{axis}_inputs_{len(inputs)}"
-        cat_fn = z3.Function(fun_name, z3.IntSort(), z3.RealSort())
-        return SMTExpr(cat_fn)
+        fun_name = f"concat_axis_{axis}_inputs_{len(inputs)}"
+        domain_sorts = [z3.RealSort() for _ in inputs]
+        range_sort = z3.RealSort()
+
+        cat_fn = z3.Function(fun_name, *(domain_sorts + [range_sort]))
+        expr = cat_fn(*[inp.expr for inp in inputs])
+        return SMTExpr(expr)
 
     @staticmethod
     def matmul(a_expr: "SMTExpr", b_expr: "SMTExpr") -> "SMTExpr":
-        matmul_fn = z3.Function("matmul_placeholder", z3.IntSort(), z3.RealSort())
+        matmul_fn = z3.Function("matmul", z3.IntSort(), z3.RealSort())
         return SMTExpr(matmul_fn)
 
     @staticmethod
@@ -159,20 +160,21 @@ class SMTExpr:
 
     @staticmethod
     def mm(a_expr: "SMTExpr", b_expr: "SMTExpr") -> "SMTExpr":
-        fn = z3.Function("mm_placeholder", z3.IntSort(), z3.RealSort())
-        return SMTExpr(fn)
+        mm_fn = z3.Function("mm", z3.RealSort(), z3.RealSort(), z3.RealSort())
+        expr = mm_fn(a_expr, b_expr)
+        return SMTExpr(expr)
 
     @staticmethod
     def scatter_nd(
         input_expr: "SMTExpr", indices_expr: "SMTExpr", value_expr: "SMTExpr"
     ) -> "SMTExpr":
-        scatter_fn = z3.Function("scatter_nd_placeholder", z3.IntSort(), z3.RealSort())
+        scatter_fn = z3.Function("scatter_nd", z3.IntSort(), z3.RealSort())
         return SMTExpr(scatter_fn)
 
     @staticmethod
     def unsqueeze(input_expr: "SMTExpr", dim: int) -> "SMTExpr":
 
-        fn_name = f"unsqueeze_dim_{dim}_placeholder"
+        fn_name = f"unsqueeze_dim_{dim}"
         unsq_fn = z3.Function(fn_name, z3.IntSort(), z3.RealSort())
         return SMTExpr(unsq_fn)
 
@@ -181,26 +183,28 @@ class SMTExpr:
         input_expr: "SMTExpr", old_shape: list[int], new_shape: list[int]
     ) -> "SMTExpr":
 
-        fn_name = f"expand_placeholder_{'_'.join(map(str,old_shape))}_to_{'_'.join(map(str,new_shape))}"
+        fn_name = (
+            f"expand_{'_'.join(map(str,old_shape))}_to_{'_'.join(map(str,new_shape))}"
+        )
         expand_fn = z3.Function(fn_name, z3.IntSort(), z3.RealSort())
         return SMTExpr(expand_fn)
 
     @staticmethod
     def bmm(a_expr: "SMTExpr", b_expr: "SMTExpr") -> "SMTExpr":
-
-        fn = z3.Function("bmm_placeholder", z3.IntSort(), z3.RealSort())
-        return SMTExpr(fn)
+        # fn = z3.Function("bmm", z3.IntSort(), z3.RealSort())
+        fn = z3.Function("bmm", z3.RealSort(), z3.RealSort(), z3.RealSort())
+        expr = fn(a_expr.expr, b_expr.expr)
+        return SMTExpr(expr)
 
     @staticmethod
     def dim_order_copy(input_expr: "SMTExpr") -> "SMTExpr":
-        placeholder_fn = z3.Function(
-            "dim_order_copy_placeholder", z3.IntSort(), z3.RealSort()
-        )
-        return SMTExpr(placeholder_fn)
+        fn = z3.Function("dim_order_copy", z3.IntSort(), z3.RealSort())
+        expr = fn(input_expr)
+        return SMTExpr(expr)
 
     @staticmethod
     def softmax(input_expr: "SMTExpr", dim: int) -> "SMTExpr":
-        fn_name = f"softmax_dim_{dim}_placeholder"
+        fn_name = f"softmax_dim_{dim}"
         softmax_fn = z3.Function(fn_name, z3.IntSort(), z3.RealSort())
         return SMTExpr(softmax_fn)
 

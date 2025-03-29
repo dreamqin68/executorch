@@ -7,6 +7,8 @@ from executorch.backends.smt.operators.node_visitor import (
 )
 
 
+# batch matrix multiplication
+# (b, n, m) x (b, m, p) = (b, n, p)
 @register_node_visitor
 class BMMVisitor(NodeVisitor):
     target = "aten.bmm.default"
@@ -15,15 +17,20 @@ class BMMVisitor(NodeVisitor):
         super().__init__(*args)
 
     def define_node(self, node: torch.fx.Node, state: State):
-        a_node = node.args[0]
-        b_node = node.args[1]
-        a_expr = self.define_tensor(a_node, state)
-        b_expr = self.define_tensor(b_node, state)
+        if state.regs.contains(node.args[0]):
+            expr1 = state.regs.getExpr(node.args[0])
+        else:
+            expr1 = self.define_tensor(node.args[0], state)
 
-        bmm_expr = SMTExpr.bmm(a_expr, b_expr)
+        if state.regs.contains(node.args[1]):
+            expr2 = state.regs.getExpr(node.args[1])
+        else:
+            expr2 = self.define_tensor(node.args[1], state)
+
+        bmm_expr = SMTExpr.bmm(expr1, expr2)
 
         state.regs.addExpr(node, bmm_expr, "Tensor")
 
         print(
-            f"[DEBUG] bmm => node {node}, a_expr={a_expr}, b_expr={b_expr} => {bmm_expr}"
+            f"[DEBUG] bmm => node {node}, a_expr={expr1}, b_expr={expr2} => {bmm_expr}"
         )

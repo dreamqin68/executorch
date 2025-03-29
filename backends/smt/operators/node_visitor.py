@@ -31,7 +31,7 @@ class NodeVisitor:
     def define_node(self, node: torch.fx.Node, state: State) -> SMTExpr:
         raise NotImplementedError("NodeVisitor must be extended!")
 
-    def define_tensor(node: torch.fx.Node, state: State) -> SMTExpr:
+    def define_tensor(self, node: torch.fx.Node, state: State) -> SMTExpr:
         # Assume that node.meta["val"] holds a constant tensor
         val = node.meta.get("val", None)
         if val is None:

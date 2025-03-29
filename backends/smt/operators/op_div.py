@@ -15,13 +15,20 @@ class DivVisitor(NodeVisitor):
 
     def define_node(self, node: torch.fx.Node, state: State):
 
-        in0_expr = self.define_tensor(node.args[0], state)  # input1
-        in1_expr = self.define_tensor(node.args[1], state)  # input2
+        if state.regs.contains(node.args[0]):
+            expr1 = state.regs.getExpr(node.args[0])
+        else:
+            expr1 = self.define_tensor(node.args[0], state)
 
-        div_expr = in0_expr / in1_expr
+        if state.regs.contains(node.args[1]):
+            expr2 = state.regs.getExpr(node.args[1])
+        else:
+            expr2 = self.define_tensor(node.args[1], state)
 
-        state.regs.addExpr(node, div_expr, "Tensor")
+        result_expr = expr1 / expr2
+
+        state.regs.addExpr(node, result_expr, "Tensor")
 
         print(
-            f"[DEBUG] div => node {node}, input1={in0_expr}, input2={in1_expr} => {div_expr}"
+            f"[DEBUG] div => node {node}, input1={expr1}, input2={expr1} => {result_expr}"
         )
