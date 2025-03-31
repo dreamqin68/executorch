@@ -58,7 +58,7 @@ class TestCat(unittest.TestCase):
             inputs,
             self.Cat2(),
             check_count_dict={"torch.ops.aten.cat": 1},
-            expected_smt_expr=None,
+            expected_smt_expr="concat_axis_0_inputs_2(arg1, arg2) + concat_axis_0_inputs_2(arg1, arg2)",
         )
 
 

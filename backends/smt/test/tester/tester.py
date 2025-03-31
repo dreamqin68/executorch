@@ -361,16 +361,20 @@ class SmtTester:
             )
 
         smt_expr_str = get_smt_processed_bytes_from_edge_program_manager(final_artifact)
+
         if not smt_expr_str:
             raise RuntimeError("No SMT expression found in the final lowered module.")
 
-        if expected_substring not in smt_expr_str:
+        normalized_smt = " ".join(smt_expr_str.split())
+        normalized_expected = " ".join(expected_substring.split())
+
+        if normalized_expected not in normalized_smt:
             raise AssertionError(
-                f"Expected substring '{expected_substring}' not found in final SMT expression:\n{smt_expr_str}"
+                f"Expected substring '{normalized_expected}' not found in final SMT expression:\n{normalized_smt}"
             )
 
         print(
-            f"[TESTER] Found expected '{expected_substring}' in final SMT expression."
+            f"[TESTER] Found expected '{normalized_expected}' in final SMT expression."
         )
         return self
 
